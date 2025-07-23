@@ -2,7 +2,7 @@
 
 [![NPM Version](https://img.shields.io/npm/v/@promptrun-ai/sdk.svg)](https://www.npmjs.com/package/@promptrun-ai/sdk)
 [![NPM Downloads](https://img.shields.io/npm/dm/@promptrun-ai/sdk.svg)](https://www.npmjs.com/package/@promptrun-ai/sdk)
-[![License](https://img.shields.io/npm/l/@promptrun-ai/sdk.svg)](https://github.com/Promptrun-ai/promptrun-ai-sdk/blob/main/LICENSE)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/Promptrun-ai/promptrun-ai-sdk/main.yml?branch=main)](https://github.com/Promptrun-ai/promptrun-ai-sdk/actions)
 
 The official Promptrun AI SDK for Node.js provides a seamless bridge between your application and the Promptrun platform. It is designed for first-class integration with the **Vercel AI SDK**, enabling powerful, stream-first interactions with language models managed through your Promptrun dashboard.
@@ -35,6 +35,8 @@ yarn add @promptrun-ai/sdk
 ```bash
 pnpm add @promptrun-ai/sdk
 ```
+
+**Note:** The Vercel `ai` package is a direct dependency and will be installed automatically. This SDK requires `ai` version `^3.0.0` or higher.
 
 ## Getting Started
 
@@ -483,6 +485,334 @@ pollingPrompt.on("change", (changeEvent) => {
 });
 ```
 
+## Multi-turn Conversations
+
+For building chatbots or conversational applications, you'll want to maintain conversation history:
+
+```typescript
+import { generateText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+class ConversationBot {
+  private model: any;
+  private messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }> = [];
+
+  async initialize(projectId: string) {
+    // Fetch the system prompt
+    const promptData = await promptrun.prompt({
+      projectId,
+      poll: 0, // Or enable polling for auto-updates
+    });
+
+    this.model = promptrun.model(promptData.model.model);
+
+    // Set the system message
+    this.messages = [{ role: "system", content: promptData.prompt }];
+  }
+
+  async sendMessage(userMessage: string): Promise<string> {
+    // Add user message to conversation history
+    this.messages.push({ role: "user", content: userMessage });
+
+    // Generate response
+    const { text } = await generateText({
+      model: this.model,
+      messages: this.messages,
+    });
+
+    // Add assistant response to conversation history
+    this.messages.push({ role: "assistant", content: text });
+
+    return text;
+  }
+
+  getConversationHistory() {
+    return [...this.messages]; // Return a copy
+  }
+
+  clearHistory() {
+    // Keep only the system message
+    this.messages = this.messages.filter((msg) => msg.role === "system");
+  }
+}
+
+// Usage example
+async function chatExample() {
+  const bot = new ConversationBot();
+  await bot.initialize("YOUR_PROJECT_ID");
+
+  // First exchange
+  const response1 = await bot.sendMessage("Hello! What can you help me with?");
+  console.log("Bot:", response1);
+
+  // Second exchange (bot remembers previous context)
+  const response2 = await bot.sendMessage("Can you tell me more about that?");
+  console.log("Bot:", response2);
+
+  // View conversation history
+  console.log("Full conversation:", bot.getConversationHistory());
+}
+
+chatExample();
+```
+
+### Real-time Conversations with Auto-updating Prompts
+
+Combine multi-turn conversations with auto-updating prompts for production chatbots:
+
+```typescript
+class AutoUpdatingChatBot extends ConversationBot {
+  private pollingPrompt: any;
+
+  async initialize(projectId: string) {
+    // Set up auto-updating prompt
+    this.pollingPrompt = await promptrun.prompt({
+      projectId,
+      poll: 30000, // Update every 30 seconds
+      onChange: (changeEvent) => {
+        console.log(
+          `System prompt updated to version ${changeEvent.prompt.version}`
+        );
+        // Update the system message in conversation history
+        this.messages[0] = {
+          role: "system",
+          content: changeEvent.prompt.prompt,
+        };
+        // Update model if it changed
+        this.model = promptrun.model(changeEvent.prompt.model.model);
+      },
+    });
+
+    this.model = promptrun.model(this.pollingPrompt.model.model);
+    this.messages = [{ role: "system", content: this.pollingPrompt.prompt }];
+  }
+
+  shutdown() {
+    if (this.pollingPrompt) {
+      this.pollingPrompt.stopPolling();
+    }
+  }
+}
+
+// Usage
+const autoBot = new AutoUpdatingChatBot();
+await autoBot.initialize("YOUR_PROJECT_ID");
+
+const response = await autoBot.sendMessage("who are you?");
+console.log("Bot:", response);
+
+// The bot will automatically use updated prompts without restarting
+process.on("SIGINT", () => autoBot.shutdown());
+```
+
+## Mastra Integration
+
+The Promptrun SDK integrates seamlessly with [Mastra](https://mastra.ai), allowing you to create AI agents with dynamic, auto-updating instructions from your Promptrun dashboard.
+
+### Basic Mastra Agent with Dynamic Instructions
+
+```typescript
+import { Agent, Memory } from "@mastra/core";
+import { LibSQLStore } from "@mastra/memory";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+// Initialize Promptrun SDK
+const promptrunSDK = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+// Create model for the agent
+const model = promptrunSDK.model("openai/gpt-4o");
+
+// Create agent with dynamic instructions from Promptrun
+export const promptrunAgent = new Agent({
+  name: "PromptRun Agent",
+  instructions: async ({ runtimeContext }) => {
+    const instructions = await promptrunSDK.prompt({
+      projectId: "0af6cca1-6053-4ae7-aec1-767750637111",
+      poll: 6000, // Auto-update instructions every 6 seconds
+    });
+    return instructions.prompt;
+  },
+  model,
+  memory: new Memory({
+    storage: new LibSQLStore({
+      url: ":memory:",
+    }),
+  }),
+});
+```
+
+### Advanced Mastra Integration with Event Handling
+
+For production applications, you might want more control over instruction updates:
+
+```typescript
+import { Agent, Memory } from "@mastra/core";
+import { LibSQLStore } from "@mastra/memory";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+class MastraPromptrunAgent {
+  private agent: Agent;
+  private pollingPrompt: any;
+  private currentInstructions: string = "";
+
+  constructor(projectId: string) {
+    this.initializeAgent(projectId);
+  }
+
+  private async initializeAgent(projectId: string) {
+    const promptrunSDK = new PromptrunSDK({
+      apiKey: process.env.PROMPTRUN_API_KEY!,
+    });
+
+    // Set up polling for instructions
+    this.pollingPrompt = await promptrunSDK.prompt({
+      projectId,
+      poll: 30000, // Check for updates every 30 seconds
+      onChange: (changeEvent) => {
+        console.log(
+          `Agent instructions updated to version ${changeEvent.prompt.version}`
+        );
+        this.currentInstructions = changeEvent.prompt.prompt;
+
+        // Log what changed for debugging
+        if (changeEvent.changes.content) {
+          console.log("Instructions content changed");
+        }
+      },
+      onPollingError: (error) => {
+        console.error("Failed to update agent instructions:", error.message);
+      },
+    });
+
+    this.currentInstructions = this.pollingPrompt.prompt;
+
+    // Create the agent
+    this.agent = new Agent({
+      name: "Dynamic PromptRun Agent",
+      instructions: async ({ runtimeContext }) => {
+        // Always return the latest instructions
+        return this.currentInstructions;
+      },
+      model: promptrunSDK.model(this.pollingPrompt.model.model),
+      memory: new Memory({
+        storage: new LibSQLStore({
+          url: process.env.DATABASE_URL || ":memory:",
+        }),
+      }),
+    });
+  }
+
+  getAgent(): Agent {
+    return this.agent;
+  }
+
+  getCurrentInstructions(): string {
+    return this.currentInstructions;
+  }
+
+  getInstructionsStatus() {
+    return this.pollingPrompt?.getStatus();
+  }
+
+  shutdown() {
+    if (this.pollingPrompt) {
+      this.pollingPrompt.stopPolling();
+      console.log("Agent instruction polling stopped");
+    }
+  }
+}
+
+// Usage
+const dynamicAgent = new MastraPromptrunAgent("YOUR_PROJECT_ID");
+export const agent = dynamicAgent.getAgent();
+
+// Graceful shutdown
+process.on("SIGINT", () => dynamicAgent.shutdown());
+```
+
+### Multi-Agent Setup with Different Instructions
+
+You can create multiple agents with different instruction sets from different Promptrun projects:
+
+```typescript
+import { Agent, Memory } from "@mastra/core";
+import { LibSQLStore } from "@mastra/memory";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrunSDK = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+// Customer Support Agent
+export const supportAgent = new Agent({
+  name: "Customer Support Agent",
+  instructions: async () => {
+    const instructions = await promptrunSDK.prompt({
+      projectId: "support-project-id",
+      tag: "production", // Use production-tagged instructions
+      poll: 60000, // Update every minute
+    });
+    return instructions.prompt;
+  },
+  model: promptrunSDK.model("openai/gpt-4o"),
+  memory: new Memory({
+    storage: new LibSQLStore({ url: ":memory:" }),
+  }),
+});
+
+// Sales Agent
+export const salesAgent = new Agent({
+  name: "Sales Agent",
+  instructions: async () => {
+    const instructions = await promptrunSDK.prompt({
+      projectId: "sales-project-id",
+      tag: "production",
+      poll: 60000,
+    });
+    return instructions.prompt;
+  },
+  model: promptrunSDK.model("openai/gpt-4o-mini"), // Different model
+  memory: new Memory({
+    storage: new LibSQLStore({ url: ":memory:" }),
+  }),
+});
+
+// Technical Assistant Agent
+export const techAgent = new Agent({
+  name: "Technical Assistant",
+  instructions: async () => {
+    const instructions = await promptrunSDK.prompt({
+      projectId: "tech-project-id",
+      version: "v2", // Use specific version
+      poll: 30000,
+    });
+    return instructions.prompt;
+  },
+  model: promptrunSDK.model("openai/gpt-4o"),
+  memory: new Memory({
+    storage: new LibSQLStore({ url: ":memory:" }),
+  }),
+});
+```
+
+### Benefits of Promptrun + Mastra Integration
+
+- **Dynamic Instructions**: Update agent behavior without redeploying
+- **Version Control**: Use specific versions or tags for different environments
+- **Real-time Updates**: Agents automatically adapt to instruction changes
+- **Centralized Management**: Manage all agent instructions from Promptrun dashboard
+- **A/B Testing**: Easily test different instruction sets by updating prompts
+- **Rollback Capability**: Quickly revert to previous instruction versions
+
 ## Advanced Usage
 
 ### Long-running Applications with Auto-updates
@@ -732,154 +1062,20 @@ interface PromptrunPromptOptions {
 }
 ```
 
-## Contributing
-
-Contributions are welcome! If you find a bug or have a feature request, please open an issue on our [GitHub repository](https://github.com/Promptrun-ai/promptrun-ai-sdk/issues).
-
-## License
-
-This SDK is licensed under the [MIT License](https://github.com/Promptrun-ai/promptrun-ai-sdk/blob/main/LICENSE).
-
-## Multi-turn Conversations
-
-For building chatbots or conversational applications, you'll want to maintain conversation history:
-
-```typescript
-import { generateText } from "ai";
-import { PromptrunSDK } from "@promptrun-ai/sdk";
-
-const promptrun = new PromptrunSDK({
-  apiKey: process.env.PROMPTRUN_API_KEY!,
-});
-
-class ConversationBot {
-  private model: any;
-  private messages: Array<{
-    role: "system" | "user" | "assistant";
-    content: string;
-  }> = [];
-
-  async initialize(projectId: string) {
-    // Fetch the system prompt
-    const promptData = await promptrun.prompt({
-      projectId,
-      poll: 0, // Or enable polling for auto-updates
-    });
-
-    this.model = promptrun.model(promptData.model.model);
-
-    // Set the system message
-    this.messages = [{ role: "system", content: promptData.prompt }];
-  }
-
-  async sendMessage(userMessage: string): Promise<string> {
-    // Add user message to conversation history
-    this.messages.push({ role: "user", content: userMessage });
-
-    // Generate response
-    const { text } = await generateText({
-      model: this.model,
-      messages: this.messages,
-    });
-
-    // Add assistant response to conversation history
-    this.messages.push({ role: "assistant", content: text });
-
-    return text;
-  }
-
-  getConversationHistory() {
-    return [...this.messages]; // Return a copy
-  }
-
-  clearHistory() {
-    // Keep only the system message
-    this.messages = this.messages.filter((msg) => msg.role === "system");
-  }
-}
-
-// Usage example
-async function chatExample() {
-  const bot = new ConversationBot();
-  await bot.initialize("YOUR_PROJECT_ID");
-
-  // First exchange
-  const response1 = await bot.sendMessage("Hello! What can you help me with?");
-  console.log("Bot:", response1);
-
-  // Second exchange (bot remembers previous context)
-  const response2 = await bot.sendMessage("Can you tell me more about that?");
-  console.log("Bot:", response2);
-
-  // View conversation history
-  console.log("Full conversation:", bot.getConversationHistory());
-}
-
-chatExample();
-```
-
-### Real-time Conversations with Auto-updating Prompts
-
-Combine multi-turn conversations with auto-updating prompts for production chatbots:
-
-```typescript
-class AutoUpdatingChatBot extends ConversationBot {
-  private pollingPrompt: any;
-
-  async initialize(projectId: string) {
-    // Set up auto-updating prompt
-    this.pollingPrompt = await promptrun.prompt({
-      projectId,
-      poll: 30000, // Update every 30 seconds
-      onChange: (changeEvent) => {
-        console.log(
-          `System prompt updated to version ${changeEvent.prompt.version}`
-        );
-        // Update the system message in conversation history
-        this.messages[0] = {
-          role: "system",
-          content: changeEvent.prompt.prompt,
-        };
-        // Update model if it changed
-        this.model = promptrun.model(changeEvent.prompt.model.model);
-      },
-    });
-
-    this.model = promptrun.model(this.pollingPrompt.model.model);
-    this.messages = [{ role: "system", content: this.pollingPrompt.prompt }];
-  }
-
-  shutdown() {
-    if (this.pollingPrompt) {
-      this.pollingPrompt.stopPolling();
-    }
-  }
-}
-
-// Usage
-const autoBot = new AutoUpdatingChatBot();
-await autoBot.initialize("YOUR_PROJECT_ID");
-
-const response = await autoBot.sendMessage("who are you?");
-console.log("Bot:", response);
-
-// The bot will automatically use updated prompts without restarting
-process.on("SIGINT", () => autoBot.shutdown());
-```
-
 ## Quick Reference
 
 ### Usage Patterns Summary
 
-| Pattern             | Use Case                        | Example                                                                               |
-| ------------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
-| **Simple Prompt**   | Basic text generation           | `generateText({ model, prompt: "Hello" })`                                            |
-| **Messages Array**  | Chat applications               | `generateText({ model, messages: [{ role: "user", content: "Hello" }] })`             |
-| **System + User**   | AI assistants with instructions | `messages: [{ role: "system", content: prompt }, { role: "user", content: "Hello" }]` |
-| **Static Prompt**   | Fixed prompts                   | `await promptrun.prompt({ projectId, poll: 0 })`                                      |
-| **Polling Updates** | Auto-updating prompts           | `await promptrun.prompt({ projectId, poll: 30000 })`                                  |
-| **SSE Updates**     | Real-time updates               | `await promptrun.prompt({ projectId, poll: "sse" })`                                  |
-| **Multi-turn Chat** | Conversation history            | Maintain `messages` array with conversation                                           |
+| Pattern                | Use Case                        | Example                                                                               |
+| ---------------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
+| **Simple Prompt**      | Basic text generation           | `generateText({ model, prompt: "Hello" })`                                            |
+| **Messages Array**     | Chat applications               | `generateText({ model, messages: [{ role: "user", content: "Hello" }] })`             |
+| **System + User**      | AI assistants with instructions | `messages: [{ role: "system", content: prompt }, { role: "user", content: "Hello" }]` |
+| **Static Prompt**      | Fixed prompts                   | `await promptrun.prompt({ projectId, poll: 0 })`                                      |
+| **Polling Updates**    | Auto-updating prompts           | `await promptrun.prompt({ projectId, poll: 30000 })`                                  |
+| **SSE Updates**        | Real-time updates               | `await promptrun.prompt({ projectId, poll: "sse" })`                                  |
+| **Multi-turn Chat**    | Conversation history            | Maintain `messages` array with conversation                                           |
+| **Mastra Integration** | AI Agents                       | `instructions: async () => (await promptrun.prompt(...)).prompt`                      |
 
 ### Common Code Snippets
 
@@ -925,3 +1121,47 @@ const { textStream } = await streamText({
   ],
 });
 ```
+
+#### Mastra agent with dynamic instructions:
+
+```typescript
+export const agent = new Agent({
+  name: "PromptRun Agent",
+  instructions: async () => {
+    const instructions = await promptrunSDK.prompt({
+      projectId: "YOUR_PROJECT_ID",
+      poll: 6000,
+    });
+    return instructions.prompt;
+  },
+  model: promptrunSDK.model("openai/gpt-4o"),
+});
+```
+
+## Contributing
+
+Contributions are welcome! If you find a bug or have a feature request, please open an issue on our [GitHub repository](https://github.com/Promptrun-ai/promptrun-ai-sdk/issues).
+
+## License
+
+MIT License
+
+Copyright (c) 2025 Promptrun.ai
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights  
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell  
+copies of the Software, and to permit persons to whom the Software is  
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all  
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR  
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,  
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE  
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER  
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,  
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE  
+SOFTWARE.
