@@ -148,7 +148,7 @@ const promptrun = new PromptrunSDK({
 
 async function main() {
   // Fetch the latest prompt from your project
-  const promptData = await promptrun.prompt({
+  const { prompt } = await promptrun.prompt({
     projectId: "YOUR_PROMPTRUN_PROJECT_ID",
     poll: 1000, // Not mandatory
   });
@@ -159,7 +159,7 @@ async function main() {
   const { textStream } = await streamText({
     model,
     messages: [
-      { role: "system", content: promptData.prompt },
+      { role: "system", content: prompt },
       { role: "user", content: "who are you?" },
     ],
   });
