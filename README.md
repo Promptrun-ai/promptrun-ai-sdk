@@ -153,7 +153,7 @@ async function main() {
     poll: 1000, // Not mandatory
   });
 
-  const model = promptrun.model(promptData.model.model);
+  const model = promptrun.model("anthropic/claude-sonnet-4");
 
   // Stream response using messages format
   const { textStream } = await streamText({
