@@ -36,8 +36,6 @@ yarn add @promptrun-ai/sdk
 pnpm add @promptrun-ai/sdk
 ```
 
-**Note:** The Vercel `ai` package is a direct dependency and will be installed automatically. This SDK requires `ai` version `^3.0.0` or higher.
-
 ## Getting Started
 
 Using the Promptrun SDK is simple. Instantiate the client and use the `.model()` method to create a language model compatible with the Vercel AI SDK.
