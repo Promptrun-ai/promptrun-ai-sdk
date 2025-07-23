@@ -1,0 +1,612 @@
+# Promptrun AI SDK
+
+[![NPM Version](https://img.shields.io/npm/v/@promptrun-ai/sdk.svg)](https://www.npmjs.com/package/@promptrun-ai/sdk)
+[![NPM Downloads](https://img.shields.io/npm/dm/@promptrun-ai/sdk.svg)](https://www.npmjs.com/package/@promptrun-ai/sdk)
+[![License](https://img.shields.io/npm/l/@promptrun-ai/sdk.svg)](https://github.com/Promptrun-ai/promptrun-ai-sdk/blob/main/LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Promptrun-ai/promptrun-ai-sdk/main.yml?branch=main)](https://github.com/Promptrun-ai/promptrun-ai-sdk/actions)
+
+The official Promptrun AI SDK for Node.js provides a seamless bridge between your application and the Promptrun platform. It is designed for first-class integration with the **Vercel AI SDK**, enabling powerful, stream-first interactions with language models managed through your Promptrun dashboard.
+
+Unlock dynamic prompt management, versioning, performance caching, real-time updates, and robust error handling in your AI applications with just a few lines of code.
+
+## Key Features
+
+- **Seamless Vercel AI SDK Integration**: Use the Promptrun SDK directly with `generateText`, `streamText`, and other Vercel AI SDK helpers.
+- **Dynamic Prompt Management**: Fetch and poll your prompt templates directly from the Promptrun server, allowing you to update prompts in real-time without redeploying your application.
+- **Real-time Updates**: Event-driven architecture with polling and Server-Sent Events (SSE) support for instant prompt updates.
+- **Event-driven Architecture**: Listen for prompt changes with `onChange` callbacks and event listeners (`on`, `off`, `once`).
+- **Performance Caching**: Built-in support for caching prompts on the Promptrun backend to reduce latency and costs on subsequent identical calls.
+- **Robust, Typed Error Handling**: A clear set of custom error classes (`PromptrunAuthenticationError`, `PromptrunAPIError`, etc.) lets you build resilient applications that can gracefully handle API issues.
+- **Streaming First**: Full support for streaming responses, perfect for building interactive, real-time user experiences.
+- **Fully Typed**: Written in TypeScript to provide excellent autocompletion and type safety.
+
+## Installation
+
+You can install the SDK using npm, yarn, or pnpm.
+
+```bash
+npm install @promptrun-ai/sdk
+```
+
+```bash
+yarn add @promptrun-ai/sdk
+```
+
+```bash
+pnpm add @promptrun-ai/sdk
+```
+
+**Note:** The Vercel `ai` package is a direct dependency and will be installed automatically. This SDK requires `ai` version `^3.0.0` or higher.
+
+## Getting Started
+
+Using the Promptrun SDK is simple. Instantiate the client and use the `.model()` method to create a language model compatible with the Vercel AI SDK.
+
+### Basic Usage with `generateText`
+
+This example shows how to generate a complete text response.
+
+```typescript
+import { generateText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+// 1. Initialize the Promptrun SDK with your API key
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+// 2. Create a model instance
+const model = promptrun.model("openai/gpt-4o");
+
+async function main() {
+  // 3. Use the model with the Vercel AI SDK
+  const { text } = await generateText({
+    model,
+    prompt: "Tell me a short story about a robot who learns to paint.",
+  });
+
+  console.log(text);
+}
+
+main();
+```
+
+### Streaming with `streamText`
+
+For interactive applications, streaming is essential. The SDK fully supports this out of the box.
+
+```typescript
+import { streamText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+const model = promptrun.model("openai/gpt-4o");
+
+async function main() {
+  const { textStream } = await streamText({
+    model,
+    prompt: "Tell me a short story about a robot who learns to paint.",
+  });
+
+  // The stream is ready to be consumed
+  for await (const delta of textStream) {
+    process.stdout.write(delta);
+  }
+}
+
+main();
+```
+
+## Dynamic Prompt Management
+
+### Fetching Prompts from the Server
+
+Instead of hardcoding prompts, you can fetch them from your Promptrun project. This allows you to manage prompts through your dashboard and update them without code changes.
+
+```typescript
+import { generateText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+async function main() {
+  // Fetch a prompt template from your project (one-time fetch)
+  const promptData = await promptrun.prompt({
+    projectId: "YOUR_PROMPTRUN_PROJECT_ID",
+    poll: 0, // Disable polling for one-time fetch
+  });
+
+  console.log(`Using prompt version: ${promptData.version}`);
+  console.log(`Prompt content: ${promptData.prompt}`);
+
+  // Create a model instance using the model specified in the prompt template
+  const model = promptrun.model(promptData.model.model);
+
+  // Use the fetched prompt content
+  const { text } = await generateText({
+    model,
+    prompt: promptData.prompt,
+  });
+
+  console.log("Generated Text:", text);
+}
+
+main();
+```
+
+### Version and Tag Support
+
+You can fetch specific versions or tagged versions of your prompts:
+
+```typescript
+// Fetch a specific version
+const promptData = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  version: "v2",
+  poll: 0,
+});
+
+// Fetch a tagged version (e.g., "production", "staging")
+const productionPrompt = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  tag: "production",
+  poll: 0,
+});
+```
+
+## Real-time Prompt Updates
+
+### Event-Driven Polling
+
+The SDK provides powerful event-driven functionality for real-time prompt updates. When you enable polling, you get a `PromptrunPollingPrompt` that extends the basic prompt with event capabilities.
+
+```typescript
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+async function main() {
+  // Enable polling (checks for updates every 30 seconds)
+  const pollingPrompt = await promptrun.prompt({
+    projectId: "YOUR_PROJECT_ID",
+    poll: 30000, // Poll every 30 seconds
+    onChange: (changeEvent) => {
+      console.log("Prompt updated!", {
+        newVersion: changeEvent.prompt.version,
+        changes: changeEvent.changes,
+        previousVersion: changeEvent.previousPrompt.version,
+      });
+
+      // Handle specific types of changes
+      if (changeEvent.changes.content) {
+        console.log("Content changed:", {
+          from: changeEvent.changes.content.from,
+          to: changeEvent.changes.content.to,
+        });
+      }
+
+      if (changeEvent.changes.temperature) {
+        console.log("Temperature changed:", {
+          from: changeEvent.changes.temperature.from,
+          to: changeEvent.changes.temperature.to,
+        });
+      }
+    },
+    onPollingError: (error) => {
+      console.error("Polling error:", error.message);
+      console.error("Error type:", error.type);
+      console.error("Consecutive errors:", error.consecutiveErrors);
+    },
+  });
+
+  console.log("Initial prompt:", pollingPrompt.prompt);
+  console.log("Polling active:", pollingPrompt.isPolling);
+
+  // The prompt will automatically update when changes are detected
+  // Your onChange callback will be called with details about what changed
+
+  // Clean up when done
+  setTimeout(() => {
+    pollingPrompt.stopPolling();
+    console.log("Polling stopped");
+  }, 300000); // Stop after 5 minutes
+}
+
+main();
+```
+
+### Event Listeners (on/off/once)
+
+For more fine-grained control, you can use event listeners instead of or in addition to callbacks:
+
+```typescript
+async function main() {
+  const pollingPrompt = await promptrun.prompt({
+    projectId: "YOUR_PROJECT_ID",
+    poll: 10000, // Poll every 10 seconds
+  });
+
+  // Add event listeners
+  pollingPrompt.on("change", (changeEvent) => {
+    console.log("Change detected via event listener:", changeEvent.changes);
+  });
+
+  pollingPrompt.on("error", (pollingError) => {
+    console.error("Polling error via event listener:", pollingError.message);
+  });
+
+  // One-time listeners (automatically removed after first event)
+  pollingPrompt.once("change", (changeEvent) => {
+    console.log("First change detected:", changeEvent.prompt.version);
+  });
+
+  // Remove specific listeners
+  const errorHandler = (error) => console.log("Error:", error.message);
+  pollingPrompt.on("error", errorHandler);
+  pollingPrompt.off("error", errorHandler); // Remove specific handler
+
+  // Remove all listeners for an event
+  pollingPrompt.off("change"); // Removes all change listeners
+
+  // Get current status
+  const status = pollingPrompt.getStatus();
+  console.log("Polling status:", {
+    isPolling: status.isPolling,
+    currentInterval: status.currentInterval,
+    consecutiveErrors: status.consecutiveErrors,
+    lastError: status.lastError,
+    lastSuccessfulFetch: status.lastSuccessfulFetch,
+  });
+}
+```
+
+### Server-Sent Events (SSE)
+
+For ultra-low latency updates, you can use Server-Sent Events instead of polling:
+
+```typescript
+async function main() {
+  // Use SSE for real-time updates (no polling interval needed)
+  const ssePrompt = await promptrun.prompt({
+    projectId: "YOUR_PROJECT_ID",
+    poll: "sse", // Enable Server-Sent Events
+    onChange: (changeEvent) => {
+      console.log("Real-time update via SSE:", changeEvent.changes);
+    },
+  });
+
+  console.log("SSE connection active:", ssePrompt.isPolling);
+
+  // SSE provides instant updates when prompts change on the server
+  // No need to wait for polling intervals
+}
+```
+
+### Polling Configuration Options
+
+The polling system includes intelligent backoff and error handling:
+
+```typescript
+const pollingPrompt = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 5000, // Poll every 5 seconds (minimum allowed)
+  enforceMinimumInterval: true, // Enforce 5-second minimum (default: true)
+
+  // Advanced error handling
+  onPollingError: (error) => {
+    console.log("Error details:", {
+      type: error.type, // 'rate_limit', 'authentication', 'network', 'api', 'unknown'
+      message: error.message,
+      consecutiveErrors: error.consecutiveErrors,
+      backoffMultiplier: error.backoffMultiplier,
+      statusCode: error.statusCode,
+    });
+
+    // Handle different error types
+    switch (error.type) {
+      case "rate_limit":
+        console.log("Rate limited - polling will slow down automatically");
+        break;
+      case "authentication":
+        console.log("Authentication failed - check your API key");
+        break;
+      case "network":
+        console.log("Network error - will retry with backoff");
+        break;
+    }
+  },
+});
+
+// Bypass minimum interval for testing (not recommended for production)
+const aggressivePolling = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 1000, // 1 second (normally not allowed)
+  enforceMinimumInterval: false, // Allow aggressive polling
+});
+```
+
+### Change Event Details
+
+The `PromptrunPromptChangeEvent` provides detailed information about what changed:
+
+```typescript
+pollingPrompt.on("change", (changeEvent) => {
+  console.log("Current prompt:", changeEvent.prompt);
+  console.log("Previous prompt:", changeEvent.previousPrompt);
+
+  // Check what specifically changed
+  const { changes } = changeEvent;
+
+  if (changes.version) {
+    console.log(`Version: ${changes.version.from} -> ${changes.version.to}`);
+  }
+
+  if (changes.content) {
+    console.log(
+      `Content changed from "${changes.content.from}" to "${changes.content.to}"`
+    );
+  }
+
+  if (changes.temperature) {
+    console.log(
+      `Temperature: ${changes.temperature.from} -> ${changes.temperature.to}`
+    );
+  }
+
+  if (changes.tag) {
+    console.log(`Tag: ${changes.tag.from} -> ${changes.tag.to}`);
+  }
+
+  if (changes.updatedAt) {
+    console.log(
+      `Updated: ${changes.updatedAt.from} -> ${changes.updatedAt.to}`
+    );
+  }
+});
+```
+
+## Advanced Usage
+
+### Long-running Applications with Auto-updates
+
+Perfect for chatbots, APIs, or any long-running service that needs to stay up-to-date:
+
+```typescript
+import { generateText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+class ChatBot {
+  private pollingPrompt: any;
+  private model: any;
+
+  async initialize() {
+    // Set up auto-updating prompt
+    this.pollingPrompt = await promptrun.prompt({
+      projectId: "YOUR_PROJECT_ID",
+      poll: 60000, // Check for updates every minute
+      onChange: (changeEvent) => {
+        console.log(`Prompt updated to version ${changeEvent.prompt.version}`);
+        // Update the model if the model type changed
+        this.model = promptrun.model(changeEvent.prompt.model.model);
+      },
+    });
+
+    // Initial model setup
+    this.model = promptrun.model(this.pollingPrompt.model.model);
+    console.log("ChatBot initialized with auto-updating prompts");
+  }
+
+  async chat(userMessage: string) {
+    // Always use the latest prompt version
+    const { text } = await generateText({
+      model: this.model,
+      prompt: `${this.pollingPrompt.prompt}\n\nUser: ${userMessage}\nAssistant:`,
+    });
+
+    return text;
+  }
+
+  shutdown() {
+    this.pollingPrompt.stopPolling();
+    console.log("ChatBot shutdown complete");
+  }
+}
+
+// Usage
+const bot = new ChatBot();
+await bot.initialize();
+
+const response = await bot.chat("Hello!");
+console.log(response);
+
+// Gracefully shutdown when done
+process.on("SIGINT", () => bot.shutdown());
+```
+
+### Prompt Caching
+
+To improve performance and reduce costs, you can cache prompt completions on the Promptrun backend.
+
+1.  **First Call (Populating the Cache)**: On the first request, provide a unique cache ID.
+
+    ```typescript
+    const model = promptrun.model("openai/gpt-4o", {
+      cache: { id: "user-123-summary-request" },
+    });
+
+    await generateText({
+      model,
+      prompt: "Summarize the following document for user 123...",
+    });
+    ```
+
+2.  **Subsequent Calls (Using the Cache)**: On future calls, pass a special header to tell the SDK to use the cached version.
+
+    ```typescript
+    const model = promptrun.model("openai/gpt-4o", {
+      cache: { id: "user-123-summary-request" },
+    });
+
+    const { text } = await generateText({
+      model,
+      prompt: "This prompt will be ignored.",
+      headers: {
+        "x-promptrun-use-cache": "true",
+      },
+    });
+    ```
+
+## Error Handling
+
+### Basic Error Handling
+
+The SDK throws custom error classes that all inherit from a base `PromptrunError`.
+
+```typescript
+import { generateText } from "ai";
+import {
+  PromptrunSDK,
+  PromptrunError,
+  PromptrunAuthenticationError,
+  PromptrunAPIError,
+  PromptrunConnectionError,
+  PromptrunConfigurationError,
+} from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({ apiKey: "INVALID_API_KEY" });
+const model = promptrun.model("openai/gpt-4o");
+
+async function main() {
+  try {
+    await generateText({ model, prompt: "This will fail." });
+  } catch (error) {
+    if (error instanceof PromptrunAuthenticationError) {
+      console.error("Authentication Failed:", error.message);
+    } else if (error instanceof PromptrunAPIError) {
+      console.error("API Error:", error.message);
+    } else if (error instanceof PromptrunConnectionError) {
+      console.error("Connection Error:", error.message);
+    } else if (error instanceof PromptrunConfigurationError) {
+      console.error("Configuration Error:", error.message);
+      console.error("Parameter:", error.parameter);
+      console.error("Provided value:", error.providedValue);
+      console.error("Expected value:", error.expectedValue);
+    } else if (error instanceof PromptrunError) {
+      console.error("A Promptrun SDK Error Occurred:", error.message);
+    } else {
+      console.error("An unknown error occurred:", error);
+    }
+  }
+}
+
+main();
+```
+
+### Polling Error Handling
+
+Polling errors are handled specially and include automatic retry with exponential backoff:
+
+```typescript
+const pollingPrompt = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 10000,
+  onPollingError: (pollingError) => {
+    console.error("Polling error details:", {
+      message: pollingError.message,
+      type: pollingError.type,
+      consecutiveErrors: pollingError.consecutiveErrors,
+      backoffMultiplier: pollingError.backoffMultiplier,
+      projectId: pollingError.projectId,
+      statusCode: pollingError.statusCode,
+      cause: pollingError.cause, // Original error that caused this
+    });
+
+    // Polling automatically continues with backoff
+    // Rate limit errors get exponential backoff
+    // Other errors get modest backoff after 3 consecutive failures
+  },
+});
+```
+
+### Error Types
+
+| Error Class                    | When It's Thrown                                                                         |
+| ------------------------------ | ---------------------------------------------------------------------------------------- |
+| `PromptrunAuthenticationError` | On an HTTP `401 Unauthorized` response. Your API key is likely invalid or missing.       |
+| `PromptrunAPIError`            | On any other non-successful HTTP response (e.g., `400`, `404`, `500`).                   |
+| `PromptrunConnectionError`     | When the SDK fails to connect to the Promptrun API due to a network issue.               |
+| `PromptrunConfigurationError`  | When invalid configuration is provided (e.g., polling interval too aggressive).          |
+| `PromptrunPollingError`        | Specific to polling operations, includes backoff and retry information.                  |
+| `PromptrunError`               | The base class for all SDK-specific errors. Catch this to handle any error from the SDK. |
+
+## API Reference
+
+### PromptrunSDK
+
+#### Constructor Options
+
+```typescript
+const promptrun = new PromptrunSDK({
+  apiKey: string;        // Your Promptrun API key
+  baseURL?: string;      // Custom API base URL (optional)
+  headers?: Record<string, string>; // Additional headers (optional)
+});
+```
+
+#### Methods
+
+- `model(modelId: string, options?: PromptrunLanguageModelOptions)` - Creates a language model instance
+- `prompt(options: PromptrunPromptOptions)` - Fetches prompts with optional polling
+
+### PromptrunPollingPrompt
+
+When polling is enabled (`poll > 0` or `poll: "sse"`), you get a `PromptrunPollingPrompt` with these additional methods:
+
+#### Properties
+
+- `isPolling: boolean` - Whether polling is currently active
+- All properties from the base `PromptrunPrompt` interface
+
+#### Methods
+
+- `getCurrent(): PromptrunPrompt` - Get the current prompt data
+- `stopPolling(): void` - Stop polling for updates
+- `getStatus(): PromptrunPollingStatus` - Get detailed polling status
+- `onError(handler: Function): void` - Add error handler
+- `removeErrorHandler(): void` - Remove error handler
+- `on(event: "change" | "error", handler: Function): void` - Add event listener
+- `off(event: "change" | "error", handler?: Function): void` - Remove event listener
+- `once(event: "change" | "error", handler: Function): void` - Add one-time event listener
+
+### Prompt Options
+
+```typescript
+interface PromptrunPromptOptions {
+  projectId: string; // Required: Your project ID
+  poll?: number | "sse"; // Polling interval in ms, "sse", or 0 to disable
+  version?: string; // Specific version to fetch
+  tag?: string; // Specific tag to fetch
+  onChange?: (event: PromptrunPromptChangeEvent) => void; // Change callback
+  onPollingError?: (error: PromptrunPollingError) => void; // Error callback
+  enforceMinimumInterval?: boolean; // Enforce 5-second minimum interval
+}
+```
+
+## Contributing
+
+Contributions are welcome! If you find a bug or have a feature request, please open an issue on our [GitHub repository](https://github.com/Promptrun-ai/promptrun-ai-sdk/issues).
+
+## License
+
+This SDK is licensed under the [MIT License](https://github.com/Promptrun-ai/promptrun-ai-sdk/blob/main/LICENSE).
