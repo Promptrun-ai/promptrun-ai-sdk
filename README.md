@@ -150,7 +150,7 @@ async function main() {
   // Fetch the latest prompt from your project
   const promptData = await promptrun.prompt({
     projectId: "YOUR_PROMPTRUN_PROJECT_ID",
-    poll: 0,
+    poll: 1000, // Not mandatory
   });
 
   const model = promptrun.model(promptData.model.model);
