@@ -36,8 +36,6 @@ yarn add @promptrun-ai/sdk
 pnpm add @promptrun-ai/sdk
 ```
 
-**Note:** The Vercel `ai` package is a direct dependency and will be installed automatically. This SDK requires `ai` version `^3.0.0` or higher.
-
 ## Getting Started
 
 Using the Promptrun SDK is simple. Instantiate the client and use the `.model()` method to create a language model compatible with the Vercel AI SDK.
@@ -71,6 +69,42 @@ async function main() {
 main();
 ```
 
+### Using Messages Array Format
+
+For chat applications, you'll often want to use the messages array format with system and user messages:
+
+```typescript
+import { generateText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+const model = promptrun.model("openai/gpt-4o");
+
+async function main() {
+  const { text } = await generateText({
+    model,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a helpful AI assistant that specializes in creative writing.",
+      },
+      {
+        role: "user",
+        content: "Tell me a short story about a robot who learns to paint.",
+      },
+    ],
+  });
+
+  console.log(text);
+}
+
+main();
+```
+
 ### Streaming with `streamText`
 
 For interactive applications, streaming is essential. The SDK fully supports this out of the box.
@@ -95,6 +129,46 @@ async function main() {
   for await (const delta of textStream) {
     process.stdout.write(delta);
   }
+}
+
+main();
+```
+
+### Streaming with Messages Format and Dynamic Prompts
+
+You can also combine streaming with the messages format and dynamic prompts:
+
+```typescript
+import { streamText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+async function main() {
+  // Fetch the latest prompt from your project
+  const promptData = await promptrun.prompt({
+    projectId: "YOUR_PROMPTRUN_PROJECT_ID",
+    poll: 0,
+  });
+
+  const model = promptrun.model(promptData.model.model);
+
+  // Stream response using messages format
+  const { textStream } = await streamText({
+    model,
+    messages: [
+      { role: "system", content: promptData.prompt },
+      { role: "user", content: "who are you?" },
+    ],
+  });
+
+  console.log("AI Response (streaming):");
+  for await (const delta of textStream) {
+    process.stdout.write(delta);
+  }
+  console.log("\n"); // New line after streaming completes
 }
 
 main();
@@ -134,6 +208,43 @@ async function main() {
   });
 
   console.log("Generated Text:", text);
+}
+
+main();
+```
+
+### Using Fetched Prompts as System Messages
+
+A common pattern is to use the fetched prompt as a system message in a chat conversation:
+
+```typescript
+import { generateText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+async function main() {
+  // Fetch prompt from your Promptrun project
+  const promptData = await promptrun.prompt({
+    projectId: "YOUR_PROMPTRUN_PROJECT_ID",
+    poll: 0,
+  });
+
+  // Create model instance
+  const model = promptrun.model(promptData.model.model);
+
+  // Use the fetched prompt as a system message
+  const { text } = await generateText({
+    model,
+    messages: [
+      { role: "system", content: promptData.prompt },
+      { role: "user", content: "who are you?" },
+    ],
+  });
+
+  console.log("AI Response:", text);
 }
 
 main();
@@ -417,6 +528,19 @@ class ChatBot {
     return text;
   }
 
+  async chatWithMessages(userMessage: string) {
+    // Use messages format with auto-updating system message
+    const { text } = await generateText({
+      model: this.model,
+      messages: [
+        { role: "system", content: this.pollingPrompt.prompt },
+        { role: "user", content: userMessage },
+      ],
+    });
+
+    return text;
+  }
+
   shutdown() {
     this.pollingPrompt.stopPolling();
     console.log("ChatBot shutdown complete");
@@ -427,8 +551,13 @@ class ChatBot {
 const bot = new ChatBot();
 await bot.initialize();
 
-const response = await bot.chat("Hello!");
-console.log(response);
+// Using simple prompt format
+const response1 = await bot.chat("Hello!");
+console.log("Simple format:", response1);
+
+// Using messages array format
+const response2 = await bot.chatWithMessages("who are you?");
+console.log("Messages format:", response2);
 
 // Gracefully shutdown when done
 process.on("SIGINT", () => bot.shutdown());
@@ -610,3 +739,189 @@ Contributions are welcome! If you find a bug or have a feature request, please o
 ## License
 
 This SDK is licensed under the [MIT License](https://github.com/Promptrun-ai/promptrun-ai-sdk/blob/main/LICENSE).
+
+## Multi-turn Conversations
+
+For building chatbots or conversational applications, you'll want to maintain conversation history:
+
+```typescript
+import { generateText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+class ConversationBot {
+  private model: any;
+  private messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }> = [];
+
+  async initialize(projectId: string) {
+    // Fetch the system prompt
+    const promptData = await promptrun.prompt({
+      projectId,
+      poll: 0, // Or enable polling for auto-updates
+    });
+
+    this.model = promptrun.model(promptData.model.model);
+
+    // Set the system message
+    this.messages = [{ role: "system", content: promptData.prompt }];
+  }
+
+  async sendMessage(userMessage: string): Promise<string> {
+    // Add user message to conversation history
+    this.messages.push({ role: "user", content: userMessage });
+
+    // Generate response
+    const { text } = await generateText({
+      model: this.model,
+      messages: this.messages,
+    });
+
+    // Add assistant response to conversation history
+    this.messages.push({ role: "assistant", content: text });
+
+    return text;
+  }
+
+  getConversationHistory() {
+    return [...this.messages]; // Return a copy
+  }
+
+  clearHistory() {
+    // Keep only the system message
+    this.messages = this.messages.filter((msg) => msg.role === "system");
+  }
+}
+
+// Usage example
+async function chatExample() {
+  const bot = new ConversationBot();
+  await bot.initialize("YOUR_PROJECT_ID");
+
+  // First exchange
+  const response1 = await bot.sendMessage("Hello! What can you help me with?");
+  console.log("Bot:", response1);
+
+  // Second exchange (bot remembers previous context)
+  const response2 = await bot.sendMessage("Can you tell me more about that?");
+  console.log("Bot:", response2);
+
+  // View conversation history
+  console.log("Full conversation:", bot.getConversationHistory());
+}
+
+chatExample();
+```
+
+### Real-time Conversations with Auto-updating Prompts
+
+Combine multi-turn conversations with auto-updating prompts for production chatbots:
+
+```typescript
+class AutoUpdatingChatBot extends ConversationBot {
+  private pollingPrompt: any;
+
+  async initialize(projectId: string) {
+    // Set up auto-updating prompt
+    this.pollingPrompt = await promptrun.prompt({
+      projectId,
+      poll: 30000, // Update every 30 seconds
+      onChange: (changeEvent) => {
+        console.log(
+          `System prompt updated to version ${changeEvent.prompt.version}`
+        );
+        // Update the system message in conversation history
+        this.messages[0] = {
+          role: "system",
+          content: changeEvent.prompt.prompt,
+        };
+        // Update model if it changed
+        this.model = promptrun.model(changeEvent.prompt.model.model);
+      },
+    });
+
+    this.model = promptrun.model(this.pollingPrompt.model.model);
+    this.messages = [{ role: "system", content: this.pollingPrompt.prompt }];
+  }
+
+  shutdown() {
+    if (this.pollingPrompt) {
+      this.pollingPrompt.stopPolling();
+    }
+  }
+}
+
+// Usage
+const autoBot = new AutoUpdatingChatBot();
+await autoBot.initialize("YOUR_PROJECT_ID");
+
+const response = await autoBot.sendMessage("who are you?");
+console.log("Bot:", response);
+
+// The bot will automatically use updated prompts without restarting
+process.on("SIGINT", () => autoBot.shutdown());
+```
+
+## Quick Reference
+
+### Usage Patterns Summary
+
+| Pattern             | Use Case                        | Example                                                                               |
+| ------------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
+| **Simple Prompt**   | Basic text generation           | `generateText({ model, prompt: "Hello" })`                                            |
+| **Messages Array**  | Chat applications               | `generateText({ model, messages: [{ role: "user", content: "Hello" }] })`             |
+| **System + User**   | AI assistants with instructions | `messages: [{ role: "system", content: prompt }, { role: "user", content: "Hello" }]` |
+| **Static Prompt**   | Fixed prompts                   | `await promptrun.prompt({ projectId, poll: 0 })`                                      |
+| **Polling Updates** | Auto-updating prompts           | `await promptrun.prompt({ projectId, poll: 30000 })`                                  |
+| **SSE Updates**     | Real-time updates               | `await promptrun.prompt({ projectId, poll: "sse" })`                                  |
+| **Multi-turn Chat** | Conversation history            | Maintain `messages` array with conversation                                           |
+
+### Common Code Snippets
+
+#### Fetch prompt and use as system message:
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 0,
+});
+const model = promptrun.model(promptData.model.model);
+
+const result = await generateText({
+  model,
+  messages: [
+    { role: "system", content: promptData.prompt },
+    { role: "user", content: "who are you?" },
+  ],
+});
+```
+
+#### Auto-updating system prompt:
+
+```typescript
+const pollingPrompt = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 30000,
+  onChange: (event) => {
+    // Use event.prompt.prompt as your new system message
+    console.log("Updated prompt:", event.prompt.prompt);
+  },
+});
+```
+
+#### Streaming with messages:
+
+```typescript
+const { textStream } = await streamText({
+  model,
+  messages: [
+    { role: "system", content: promptData.prompt },
+    { role: "user", content: userMessage },
+  ],
+});
+```
