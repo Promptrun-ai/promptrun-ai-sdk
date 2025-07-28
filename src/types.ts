@@ -48,6 +48,13 @@ export interface PromptrunPromptOptions {
   projectId: string;
 
   /**
+   * Variables to replace in the prompt string.
+   * Variables in the prompt should be in the format {{variable_name}}.
+   * These will be replaced with the corresponding values from this object.
+   */
+  variables?: Record<string, string | number | boolean>;
+
+  /**
    * The polling interval in milliseconds for refetching the prompt.
    * - If omitted, uses default interval of 6000ms (6 seconds).
    * - If set to 0, the prompt will be fetched only once (no polling).
@@ -189,6 +196,8 @@ export interface PromptrunPrompt {
   createdAt: string;
   updatedAt: string;
   prompt: string;
+  /** The processed prompt with variables replaced */
+  processedPrompt?: string;
   version: number;
   versionMessage: string;
   tag: string | null;

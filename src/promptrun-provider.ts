@@ -4,6 +4,7 @@ import {
   PromptrunPollingPromptImpl,
   PromptrunSSEPromptImpl,
 } from "./promptrun-polling-prompt";
+import { parsePromptVariables } from "./stream-utils";
 import {
   PromptrunAPIError,
   PromptrunAuthenticationError,
@@ -81,6 +82,7 @@ export class PromptrunSDK {
   ): Promise<PromptrunPrompt | PromptrunPollingPrompt> {
     const {
       projectId,
+      variables,
       poll = 6000, // Default to 6000ms polling when not specified
       version,
       tag,
@@ -91,6 +93,14 @@ export class PromptrunSDK {
 
     // Fetch the prompt once
     const initialPrompt = await this.fetchPromptOnce(projectId, version, tag);
+
+    // Process variables if provided
+    if (variables) {
+      initialPrompt.processedPrompt = parsePromptVariables(
+        initialPrompt.prompt,
+        variables
+      );
+    }
 
     // Handle polling logic
     if (poll === "sse") {
