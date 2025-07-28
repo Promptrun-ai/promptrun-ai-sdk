@@ -3,6 +3,7 @@
 [![NPM Version](https://img.shields.io/npm/v/@promptrun-ai/sdk.svg)](https://www.npmjs.com/package/@promptrun-ai/sdk)
 [![NPM Downloads](https://img.shields.io/npm/dm/@promptrun-ai/sdk.svg)](https://www.npmjs.com/package/@promptrun-ai/sdk)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/Promptrun-ai/promptrun-ai-sdk?utm_source=oss&utm_medium=github&utm_campaign=Promptrun-ai%2Fpromptrun-ai-sdk&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/Promptrun-ai/promptrun-ai-sdk/main.yml?branch=main)](https://github.com/Promptrun-ai/promptrun-ai-sdk/actions)
 
 The official Promptrun AI SDK for Node.js provides a seamless bridge between your application and the Promptrun platform. It is designed for first-class integration with the **Vercel AI SDK**, enabling powerful, stream-first interactions with language models managed through your Promptrun dashboard.
@@ -148,18 +149,18 @@ const promptrun = new PromptrunSDK({
 
 async function main() {
   // Fetch the latest prompt from your project
-  const promptData = await promptrun.prompt({
+  const { prompt } = await promptrun.prompt({
     projectId: "YOUR_PROMPTRUN_PROJECT_ID",
-    poll: 0,
+    poll: 1000, // Not mandatory
   });
 
-  const model = promptrun.model(promptData.model.model);
+  const model = promptrun.model("anthropic/claude-sonnet-4");
 
   // Stream response using messages format
   const { textStream } = await streamText({
     model,
     messages: [
-      { role: "system", content: promptData.prompt },
+      { role: "system", content: prompt },
       { role: "user", content: "who are you?" },
     ],
   });
