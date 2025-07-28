@@ -80,3 +80,24 @@ export function createPromptrunStream(): TransformStream<
     },
   });
 }
+
+/**
+ * Parses and replaces variables in a prompt string.
+ * Variables should be in the format {{variable_name}}.
+ *
+ * @param prompt The prompt string containing variables
+ * @param variables Object containing variable values
+ * @returns The prompt string with variables replaced
+ */
+export function parsePromptVariables(
+  prompt: string,
+  variables: Record<string, string | number | boolean>
+): string {
+  return prompt.replace(/\{\{(\w+)\}\}/g, (match, variableName) => {
+    if (variableName in variables) {
+      return String(variables[variableName]);
+    }
+    // If variable is not found, keep the original placeholder
+    return match;
+  });
+}

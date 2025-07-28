@@ -1,5 +1,8 @@
 import { LanguageModelV1StreamPart } from "@ai-sdk/provider";
-import { createPromptrunStream } from "../src/stream-utils";
+import {
+  createPromptrunStream,
+  parsePromptVariables,
+} from "../src/stream-utils";
 
 /**
  * A type-safe helper function to consume a ReadableStream and return its chunks as an array.
@@ -185,5 +188,68 @@ describe("Unit Test: createPromptrunStream", () => {
       finishReason: "stop",
       usage: { promptTokens: 0, completionTokens: 0 },
     });
+  });
+});
+
+describe("parsePromptVariables", () => {
+  test("should replace variables with provided values", () => {
+    const prompt = "Hello {{name}}, welcome to {{platform}}!";
+    const variables = {
+      name: "John Doe",
+      platform: "Promptrun",
+    };
+
+    const result = parsePromptVariables(prompt, variables);
+    expect(result).toBe("Hello John Doe, welcome to Promptrun!");
+  });
+
+  test("should keep original placeholders for missing variables", () => {
+    const prompt = "Hello {{name}}, your age is {{age}}";
+    const variables = {
+      name: "John Doe",
+    };
+
+    const result = parsePromptVariables(prompt, variables);
+    expect(result).toBe("Hello John Doe, your age is {{age}}");
+  });
+
+  test("should handle empty variables object", () => {
+    const prompt = "Hello {{name}}, welcome to {{platform}}!";
+    const variables = {};
+
+    const result = parsePromptVariables(prompt, variables);
+    expect(result).toBe("Hello {{name}}, welcome to {{platform}}!");
+  });
+
+  test("should handle prompt with no variables", () => {
+    const prompt = "Hello, this is a simple prompt without variables.";
+    const variables = {
+      name: "John Doe",
+    };
+
+    const result = parsePromptVariables(prompt, variables);
+    expect(result).toBe("Hello, this is a simple prompt without variables.");
+  });
+
+  test("should convert variable values to strings", () => {
+    const prompt = "Count: {{count}}, Active: {{active}}";
+    const variables = {
+      count: 42,
+      active: true,
+    };
+
+    const result = parsePromptVariables(prompt, variables);
+    expect(result).toBe("Count: 42, Active: true");
+  });
+
+  test("should handle multiple occurrences of the same variable", () => {
+    const prompt = "{{greeting}} {{name}}! How are you, {{name}}?";
+    const variables = {
+      greeting: "Hello",
+      name: "John",
+    };
+
+    const result = parsePromptVariables(prompt, variables);
+    expect(result).toBe("Hello John! How are you, John?");
   });
 });
