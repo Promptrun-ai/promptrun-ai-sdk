@@ -98,6 +98,10 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     return this.currentPrompt.prompt;
   }
 
+  get processedPrompt(): string | undefined {
+    return this.currentPrompt.processedPrompt;
+  }
+
   get version(): number {
     return this.currentPrompt.version;
   }
@@ -574,6 +578,10 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
 
   get prompt(): string {
     return this.currentPrompt.prompt;
+  }
+
+  get processedPrompt(): string | undefined {
+    return this.currentPrompt.processedPrompt;
   }
 
   get version(): number {

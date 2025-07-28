@@ -348,6 +348,86 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
   });
 
+  describe("prompt() method with variables", () => {
+    test("should process variables and add processedPrompt field", async () => {
+      const mockPromptResponse: PromptrunPrompt = {
+        id: "test-id",
+        createdAt: "2023-01-01T00:00:00Z",
+        updatedAt: "2023-01-01T00:00:00Z",
+        prompt: "Hello {{name}}, welcome to {{platform}}!",
+        version: 1,
+        versionMessage: "Initial version",
+        tag: null,
+        temperature: 0.7,
+        user: {
+          id: "user-1",
+          clerkId: "clerk-1",
+        },
+        project: {
+          id: "project-1",
+          name: "Test Project",
+        },
+        model: {
+          name: "Claude",
+          provider: "anthropic",
+          model: "claude-3-sonnet",
+          icon: "claude-icon",
+        },
+      };
+
+      fetchMock.mockResponseOnce(JSON.stringify(mockPromptResponse));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+        variables: {
+          name: "John Doe",
+          platform: "Promptrun",
+        },
+      });
+
+      expect(result.processedPrompt).toBe(
+        "Hello John Doe, welcome to Promptrun!"
+      );
+      expect(result.prompt).toBe("Hello {{name}}, welcome to {{platform}}!");
+    });
+
+    test("should not add processedPrompt when no variables provided", async () => {
+      const mockPromptResponse: PromptrunPrompt = {
+        id: "test-id",
+        createdAt: "2023-01-01T00:00:00Z",
+        updatedAt: "2023-01-01T00:00:00Z",
+        prompt: "Hello {{name}}, welcome to {{platform}}!",
+        version: 1,
+        versionMessage: "Initial version",
+        tag: null,
+        temperature: 0.7,
+        user: {
+          id: "user-1",
+          clerkId: "clerk-1",
+        },
+        project: {
+          id: "project-1",
+          name: "Test Project",
+        },
+        model: {
+          name: "Claude",
+          provider: "anthropic",
+          model: "claude-3-sonnet",
+          icon: "claude-icon",
+        },
+      };
+
+      fetchMock.mockResponseOnce(JSON.stringify(mockPromptResponse));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+      });
+
+      expect(result.processedPrompt).toBeUndefined();
+      expect(result.prompt).toBe("Hello {{name}}, welcome to {{platform}}!");
+    });
+  });
+
   describe("Polling functionality - demonstrates the issue", () => {
     test("NEW: should return a polling prompt that provides access to updated data", async () => {
       const sdk = new PromptrunSDK({ apiKey: "test-key" });

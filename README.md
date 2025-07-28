@@ -1137,6 +1137,49 @@ export const agent = new Agent({
 });
 ```
 
+## Prompt Variables
+
+The SDK supports variable parsing in prompts. You can define variables in your prompt using the `{{variable_name}}` syntax and pass values when fetching the prompt.
+
+### Example
+
+```typescript
+// Your prompt template: "Hello {{name}}, welcome to {{platform}}!"
+
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  variables: {
+    name: "John Doe",
+    platform: "Promptrun",
+  },
+});
+
+console.log(promptData.prompt); // "Hello {{name}}, welcome to {{platform}}!"
+console.log(promptData.processedPrompt); // "Hello John Doe, welcome to Promptrun!"
+```
+
+### Variable Parsing Features
+
+- **Simple replacement**: Variables in `{{variable_name}}` format are replaced with corresponding values
+- **Missing variables**: If a variable is not provided, the original placeholder is preserved
+- **Type conversion**: All variable values are converted to strings
+- **Multiple occurrences**: The same variable can be used multiple times in a prompt
+
+### Example with Missing Variables
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  variables: {
+    name: "John Doe",
+    // 'age' is not provided
+  },
+});
+
+// If prompt is: "Hello {{name}}, your age is {{age}}"
+console.log(promptData.processedPrompt); // "Hello John Doe, your age is {{age}}"
+```
+
 ## Contributing
 
 Contributions are welcome! If you find a bug or have a feature request, please open an issue on our [GitHub repository](https://github.com/Promptrun-ai/promptrun-ai-sdk/issues).
