@@ -178,7 +178,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.promptrun.ai/prompt?projectId=proj-1",
+      "https://api.promptrun.ai/v1/prompt?projectId=proj-1",
       expect.any(Object)
     );
   });
@@ -246,7 +246,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       await sdk.prompt({ projectId: "proj-123" });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/prompt?projectId=proj-123",
+        "https://api.promptrun.ai/v1/prompt?projectId=proj-123",
         expect.any(Object)
       );
     });

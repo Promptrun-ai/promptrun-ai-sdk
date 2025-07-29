@@ -4,6 +4,12 @@
 
 ### Patch Changes
 
+- 4f78d35: Beta release 1.0.1-beta.1
+
+## 1.0.1
+
+### Patch Changes
+
 - e0412b0: Beta release 1.0.1-beta.6
 
 ## 1.0.1
