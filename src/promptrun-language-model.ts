@@ -177,7 +177,8 @@ export class PromptrunLanguageModel implements LanguageModelV1 {
    * @private
    */
   private async executeStreamRequest(options: LanguageModelV1CallOptions) {
-    const url = "https://api.promptrun.ai/v1/chat/completions";
+    const baseURL = this.sdkOptions.baseURL || "https://api.promptrun.ai";
+    const url = `${baseURL}/v1/chat/completions`;
     const prompt: LanguageModelV1Prompt = options.prompt;
 
     const headers = { ...options.headers };

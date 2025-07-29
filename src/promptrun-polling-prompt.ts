@@ -477,7 +477,8 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
       queryParams.append("tag", this.tagParam);
     }
 
-    const url = `https://api.promptrun.ai/v1/prompt?${queryParams.toString()}`;
+    const baseURL = this.sdkOptions.baseURL || "https://api.promptrun.ai";
+    const url = `${baseURL}/v1/prompt?${queryParams.toString()}`;
 
     try {
       const response = await fetch(url, {
@@ -737,7 +738,8 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
       queryParams.append("tag", this.tagParam);
     }
 
-    const url = `https://api.promptrun.ai/v1/prompt/stream?${queryParams.toString()}`;
+    const baseURL = this.sdkOptions.baseURL || "https://api.promptrun.ai";
+    const url = `${baseURL}/v1/prompt/stream?${queryParams.toString()}`;
 
     try {
       // Note: EventSource constructor doesn't accept headers in standard browsers

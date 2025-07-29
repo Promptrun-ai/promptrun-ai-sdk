@@ -20,6 +20,7 @@ export interface PromptrunLanguageModelOptions {
  */
 export interface PromptrunSDKOptions {
   apiKey: string;
+  baseURL?: string;
   headers?: Record<string, string>;
 }
 

@@ -227,16 +227,16 @@ const promptrun = new PromptrunSDK({
 
 // Define your input schema using Zod
 const inputsSchema = z.object({
-  symbol: z.string(),
-  chain: z.enum(["ethereum", "base", "arbitrum"]),
-  address: z.string(),
+  name: z.string(),
+  age: z.number().min(0),
+  email: z.string().email(),
 });
 
 // Provide inputs that match the schema
 const inputs = {
-  symbol: "ETH",
-  chain: "ethereum",
-  address: "0xabc...",
+  name: "John",
+  age: 30,
+  email: "john@example.com",
 };
 
 // Use the enhanced prompt method
@@ -268,65 +268,6 @@ console.log("Model:", model);
 - **Error Handling**: Clear error messages for validation failures
 - **Warning System**: Shows warnings for missing variables but continues execution
 
-### Example: Crypto Analysis Prompt
-
-```typescript
-import { PromptrunSDK } from "@promptrun-ai/sdk";
-import { z } from "zod";
-
-const promptrun = new PromptrunSDK({
-  apiKey: process.env.PROMPTRUN_API_KEY!,
-});
-
-// Define schema for crypto analysis inputs
-const cryptoAnalysisSchema = z.object({
-  symbol: z.string().min(1, "Symbol is required"),
-  chain: z.enum(["ethereum", "base", "arbitrum", "polygon"]),
-  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address"),
-  timeframe: z.enum(["1h", "24h", "7d", "30d"]).default("24h"),
-});
-
-async function analyzeCryptoToken(
-  tokenData: z.infer<typeof cryptoAnalysisSchema>
-) {
-  try {
-    const { systemPrompt, inputs, template, version } = await promptrun.prompt({
-      projectId: "crypto-analysis-project",
-      inputsSchema: cryptoAnalysisSchema,
-      inputs: tokenData,
-    });
-
-    console.log("Analysis prompt:", systemPrompt);
-    console.log("Available variables:", inputs);
-    console.log("Template version:", version);
-
-    // Use the processed prompt with your AI model
-    const model = promptrun.model("openai/gpt-4o");
-    const { text } = await generateText({
-      model,
-      prompt: systemPrompt,
-    });
-
-    return text;
-  } catch (error) {
-    if (error instanceof PromptrunConfigurationError) {
-      console.error("Input validation failed:", error.message);
-    } else {
-      console.error("Analysis failed:", error);
-    }
-    throw error;
-  }
-}
-
-// Usage
-const analysis = await analyzeCryptoToken({
-  symbol: "ETH",
-  chain: "ethereum",
-  address: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
-  timeframe: "24h",
-});
-```
-
 ### Handling Missing Variables
 
 The enhanced prompt method shows warnings for missing variables but allows execution to continue:
@@ -335,13 +276,13 @@ The enhanced prompt method shows warnings for missing variables but allows execu
 const { systemPrompt, inputs } = await promptrun.prompt({
   projectId: "your-project-id",
   inputs: {
-    symbol: "ETH",
-    // Missing chain and address - will show warning
+    name: "John",
+    // Missing age and email - will show warning
   },
 });
 
-// Output will be: "Analyze the ETH token on {{chain}} blockchain. Address: {{address}}"
-// Console will show: "Warning: The following variables are defined in the prompt but not provided in inputs: chain, address. Continuing with unprocessed variables."
+// Output will be: "Hello {{name}}, you are {{age}} years old. Email: {{email}}"
+// Console will show: "Warning: The following variables are defined in the prompt but not provided in inputs: age, email. Continuing with unprocessed variables."
 ```
 
 ### Without Schema Validation
