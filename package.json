@@ -40,7 +40,7 @@
   "homepage": "https://github.com/Promptrun-ai/promptrun-ai-sdk",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Promptrun-ai/promptrun-ai-sdk"
+    "url": "git+https://github.com/Promptrun-ai/promptrun-ai-sdk.git"
   },
   "bugs": {
     "url": "https://github.com/Promptrun-ai/promptrun-ai-sdk/issues"

@@ -59,9 +59,6 @@ jobs:
           # Update package.json version
           npm version $BETA_VERSION --no-git-tag-version
 
-          # Create a changeset for the beta version
-          echo "{\"releases\":[{\"name\":\"@promptrun-ai/sdk\",\"type\":\"patch\"}],\"summary\":\"Beta release ${BETA_VERSION}\"}" > .changeset/beta-${BETA_NUM}.md
-
       - name: Publish beta to NPM
         run: npm publish --tag beta --access public
         env:
