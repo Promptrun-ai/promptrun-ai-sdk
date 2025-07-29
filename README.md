@@ -29,7 +29,7 @@ Transform your AI applications with centralized prompt management, real-time upd
 - **Dynamic Prompt Management**: Fetch and manage prompt templates from your Promptrun dashboard with real-time updates and version control
 - **Real-time Updates**: Event-driven architecture with polling and Server-Sent Events (SSE) for instant prompt updates without redeployment
 - **Version Control & Tagging**: Support for prompt versioning, tagging, and rollback capabilities for different environments
-- **Enhanced Prompt Variables**: Dynamic variable replacement with `{{variable_name}}` syntax and Zod schema validation for type-safe inputs
+- **Enhanced Prompt Management**: Dynamic variable replacement with `{{variable_name}}` syntax and Zod schema validation for type-safe inputs
 - **Seamless LLM Integration**: Use prompts directly with `generateText`, `streamText`, and other Vercel AI SDK helpers
 - **Performance Caching**: Built-in caching for prompts and completions to reduce latency and costs
 - **Robust Error Handling**: Comprehensive error classes for building resilient applications
@@ -81,7 +81,26 @@ const { text } = await generateText({
 });
 ```
 
-\*Note: The `poll` parameter is optional and only necessary if you want automatic updates. For one-time prompt fetching, you can omit it or set `poll: 0`.
+\*Note: The `poll` parameter is optional and defaults to `0` (no polling). For automatic updates, you must explicitly set a polling interval.
+
+**Important**: When polling is enabled, the program will not exit automatically because the polling keeps the Node.js event loop alive. You must either:
+
+- Use `poll: 0` for one-time fetches (default behavior), or
+- Call `promptData.stopPolling()` when you're done, or
+- Use event listeners and callbacks to handle updates
+
+**📚 Examples**: Check out the [examples folder](./examples) for practical usage examples.
+
+## Examples
+
+📚 **Practical Examples**: See the [examples folder](./examples) for complete, runnable examples:
+
+- **[Basic Usage](./examples/01-basic-usage.ts)** - Simple prompt fetching
+- **[Enhanced Prompts](./examples/02-enhanced-prompts.ts)** - Schema validation and variables
+- **[Polling](./examples/03-polling-example.ts)** - Real-time updates
+- **[AI Integration](./examples/04-ai-integration.ts)** - Using prompts with AI models
+- **[Version/Tag Support](./examples/05-version-tag-support.ts)** - Fetching specific versions
+- **[Error Handling](./examples/06-error-handling.ts)** - Graceful error handling
 
 ## Prompt Management
 
@@ -105,6 +124,71 @@ const promptData = await promptrun.prompt({
 });
 ```
 
+### Understanding Polling Behavior
+
+The SDK has different behaviors based on the `poll` parameter:
+
+#### One-Time Fetch (Recommended for simple use cases)
+
+```typescript
+// ✅ Program exits normally
+const promptData = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 0, // Explicitly disable polling
+});
+
+console.log(promptData.prompt);
+// Program exits here
+```
+
+#### Default Behavior (One-time fetch)
+
+```typescript
+// ✅ This will complete and allow the program to exit (default behavior)
+const promptData = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  // poll defaults to 0 (no polling)
+});
+
+console.log(promptData.prompt);
+// Program exits normally
+```
+
+#### Explicit Polling (Keeps program alive)
+
+```typescript
+// ⚠️ This will keep the program running due to background polling
+const promptData = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 6000, // Explicitly enable polling every 6 seconds
+});
+
+console.log(promptData.prompt);
+// Program continues running due to background polling
+
+// ✅ Stop polling when done
+promptData.stopPolling();
+// Now program can exit
+```
+
+#### With Event Listeners
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 30000, // Poll every 30 seconds
+  onChange: (changeEvent) => {
+    console.log("Prompt updated:", changeEvent.prompt.prompt);
+  },
+});
+
+// Use the prompt...
+console.log(promptData.prompt);
+
+// ✅ Stop polling when done
+promptData.stopPolling();
+```
+
 ### Version and Tag Support
 
 Manage different versions of your prompts for different environments:
@@ -125,45 +209,9 @@ const productionPrompt = await promptrun.prompt({
 });
 ```
 
-### Prompt Variables
-
-Use dynamic variables in your prompts with `{{variable_name}}` syntax:
-
-```typescript
-// Your prompt template: "Hello {{name}}, welcome to {{platform}}!"
-
-const promptData = await promptrun.prompt({
-  projectId: "your-project-id",
-  variables: {
-    name: "John Doe",
-    platform: "Promptrun",
-  },
-});
-```
-
-#### Variable Features
-
-- **Simple replacement**: Variables in `{{variable_name}}` format are replaced with corresponding values
-- **Missing variables**: If a variable is not provided, the original placeholder is preserved
-- **Type conversion**: All variable values are converted to strings
-- **Multiple occurrences**: The same variable can be used multiple times in a prompt
-
-```typescript
-const promptData = await promptrun.prompt({
-  projectId: "your-project-id",
-  variables: {
-    name: "John Doe",
-    // 'age' is not provided
-  },
-});
-
-// If prompt is: "Hello {{name}}, your age is {{age}}"
-// Result: "Hello John Doe, your age is {{age}}"
-```
-
 ## Enhanced Prompt Management with Schema Validation
 
-The SDK now includes enhanced prompt functionality that provides schema validation, variable extraction, and structured results. This is perfect for applications that need type safety and better control over prompt variables.
+The SDK now includes enhanced prompt functionality that provides schema validation, variable extraction, and structured results. This is perfect for applications that need type safety and better control over prompt inputs.
 
 ### Enhanced Prompt with Zod Schema Validation
 
@@ -1026,95 +1074,665 @@ const pollingPrompt = await promptrun.prompt({
 
 ## API Reference
 
-### PromptrunSDK
+### Core Classes
 
-#### Constructor Options
+#### PromptrunSDK
+
+The main client for interacting with the Promptrun AI platform.
+
+**Constructor:**
+
+```typescript
+new PromptrunSDK(options: PromptrunSDKOptions | string)
+```
+
+**Parameters:**
+
+- `options`: Either a string (API key) or configuration object
+- `options.apiKey`: Your Promptrun API key (required)
+- `options.headers`: Additional HTTP headers (optional)
+
+**Example:**
 
 ```typescript
 const promptrun = new PromptrunSDK({
-  apiKey: string;        // Your Promptrun API key
-  baseURL?: string;      // Custom API base URL (optional)
-  headers?: Record<string, string>; // Additional headers (optional)
+  apiKey: "your-api-key",
+  headers: { "Custom-Header": "value" },
 });
 ```
 
-#### Methods
+### Methods
 
-- `model(modelId: string, options?: PromptrunLanguageModelOptions)` - Creates a language model instance
-- `prompt(options: PromptrunPromptOptions): Promise<PromptrunPromptResult>` - Fetches prompts with optional polling and enhanced functionality
+#### prompt(options: PromptrunPromptOptions): Promise<PromptrunPromptResult>
 
-### PromptrunPollingPrompt
+Fetches a prompt template from the Promptrun server with optional polling and enhanced functionality.
 
-When polling is enabled (`poll > 0` or `poll: "sse"`), you get a `PromptrunPollingPrompt` with these additional methods:
+**Parameters:**
 
-#### Properties
+- `options.projectId`: The ID of the project containing the prompt (required)
+- `options.poll`: Polling configuration (optional)
+  - `0`: Disable polling, fetch once and return immediately
+  - `number > 0`: Poll every N milliseconds (minimum 5000ms enforced)
+  - `"sse"`: Use Server-Sent Events for real-time updates
+  - `undefined`: Default to 0 (no polling)
+- `options.version`: Specific version to fetch (optional)
+- `options.tag`: Specific tag to fetch (optional)
+- `options.inputsSchema`: Zod schema for input validation (optional)
+- `options.inputs`: Input variables for template replacement (optional)
+- `options.onChange`: Callback for prompt changes (optional)
+- `options.onPollingError`: Callback for polling errors (optional)
+- `options.enforceMinimumInterval`: Enforce 5-second minimum interval (default: true)
 
-- `isPolling: boolean` - Whether polling is currently active
-- All properties from the base `PromptrunPrompt` interface
+**Important**: When `poll` is not `0`, the returned object will have polling enabled, which keeps the Node.js event loop alive. You must call `stopPolling()` when done to allow the program to exit.
 
-#### Methods
+### Polling Behavior Reference
 
-- `getCurrent(): PromptrunPrompt` - Get the current prompt data
-- `stopPolling(): void` - Stop polling for updates
-- `getStatus(): PromptrunPollingStatus` - Get detailed polling status
-- `onError(handler: Function): void` - Add error handler
-- `removeErrorHandler(): void` - Remove error handler
-- `on(event: "change" | "error", handler: Function): void` - Add event listener
-- `off(event: "change" | "error", handler?: Function): void` - Remove event listener
-- `once(event: "change" | "error", handler: Function): void` - Add one-time event listener
+#### 1. One-Time Fetch (poll: 0)
 
-### Prompt Options
+**Use Case:** Fetch a prompt once without any background updates.
+
+**Behavior:**
+
+- ✅ Fetches prompt immediately
+- ✅ Returns response instantly
+- ✅ No background polling
+- ✅ Program exits normally
+- ✅ `isPolling: false`
+
+**Example:**
 
 ```typescript
-interface PromptrunPromptOptions {
-  projectId: string; // Required: Your project ID
-  poll?: number | "sse"; // Polling interval in ms, "sse", or 0 to disable
-  version?: string; // Specific version to fetch
-  tag?: string; // Specific tag to fetch
-  inputsSchema?: z.ZodSchema<any>; // Zod schema for input validation (enhanced)
-  inputs?: Record<string, any>; // Input variables for prompt template replacement (enhanced)
-  onChange?: (event: PromptrunPromptChangeEvent) => void; // Change callback
-  onPollingError?: (error: PromptrunPollingError) => void; // Error callback
-  enforceMinimumInterval?: boolean; // Enforce 5-second minimum interval
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 0,
+});
+
+console.log(promptData.prompt); // Prompt content
+console.log(promptData.isPolling); // false
+// Program exits normally
+```
+
+**Response Structure:**
+
+```typescript
+{
+  id: "prompt-id",
+  prompt: "Your prompt content",
+  template: "Your prompt content", // Same as prompt for one-time fetch
+  version: 1,
+  versionMessage: "Initial version",
+  tag: null,
+  temperature: 0.7,
+  user: { id: "user-id", clerkId: "clerk-id" },
+  project: { id: "project-id", name: "Project Name" },
+  modelInfo: { name: "GPT-4", provider: "openai", model: "gpt-4", icon: "🤖" },
+  createdAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
+  isPolling: false,
+  getCurrent: () => { /* returns current prompt */ },
+  stopPolling: () => { /* no-op */ },
+  getStatus: () => ({ isPolling: false, currentInterval: 0, consecutiveErrors: 0, backoffMultiplier: 1 }),
+  onError: () => { /* no-op */ },
+  removeErrorHandler: () => { /* no-op */ },
+  on: () => { /* no-op */ },
+  off: () => { /* no-op */ },
+  once: () => { /* no-op */ }
 }
 ```
 
-### Enhanced Prompt Result
+#### 2. Default Behavior (no poll parameter)
 
-When using `inputsSchema` or `inputs`, the `prompt()` method returns a structured result:
+**Use Case:** One-time prompt fetch (default behavior).
+
+**Behavior:**
+
+- ✅ Fetches prompt immediately
+- ✅ Returns response instantly
+- ✅ No background polling
+- ✅ Program exits normally
+- ✅ `isPolling: false`
+
+**Example:**
 
 ```typescript
-interface PromptrunPromptResult {
-  systemPrompt?: string; // The processed prompt with variables replaced
-  inputs?: string[]; // Array of variable names found in the template
-  template?: string; // Raw prompt template without variable replacement
-  version?: number; // Prompt version number
-  model?: string; // Model name (e.g., "gpt-4")
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  // poll defaults to 0 (no polling)
+});
 
-  // Legacy properties (when not using enhanced mode)
-  id?: string;
-  prompt?: string;
-  version?: number;
-  versionMessage?: string;
-  tag?: string | null;
-  temperature?: number;
-  user?: { id: string; clerkId: string };
-  project?: { id: string; name: string };
-  modelInfo?: { name: string; provider: string; model: string; icon: string };
-  createdAt?: string;
-  updatedAt?: string;
+console.log(promptData.prompt); // Initial prompt
+console.log(promptData.isPolling); // false
 
-  // Polling properties (when polling is enabled)
-  isPolling?: boolean;
-  getCurrent?: () => any;
-  stopPolling?: () => void;
-  getStatus?: () => any;
-  onError?: (handler: (error: any) => void) => void;
-  removeErrorHandler?: () => void;
-  on?: any;
-  off?: any;
-  once?: any;
+// Program exits normally
+```
+
+**Response Structure:**
+
+```typescript
+{
+  id: "prompt-id",
+  prompt: "Your prompt content",
+  template: "Your prompt content", // Same as prompt for one-time fetch
+  version: 1,
+  // ... other properties
+
+  // Polling properties (disabled for default behavior)
+  isPolling: false,
+  getCurrent: () => { /* returns current prompt */ },
+  stopPolling: () => { /* no-op */ },
+  getStatus: () => ({ isPolling: false, currentInterval: 0, consecutiveErrors: 0, backoffMultiplier: 1 }),
+  onError: () => { /* no-op */ },
+  removeErrorHandler: () => { /* no-op */ },
+  on: () => { /* no-op */ },
+  off: () => { /* no-op */ },
+  once: () => { /* no-op */ }
 }
+```
+
+#### 3. Custom Polling Interval (poll: number > 0)
+
+**Use Case:** Custom update intervals for different use cases.
+
+**Behavior:**
+
+- ✅ Fetches prompt immediately
+- ✅ Returns response instantly
+- ✅ Starts background polling at specified interval
+- ⚠️ Minimum 5-second interval enforced (unless bypassed)
+- ✅ `isPolling: true`
+
+**Example:**
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 30000, // Poll every 30 seconds
+});
+
+console.log(promptData.prompt); // Initial prompt
+console.log(promptData.isPolling); // true
+
+// Stop polling when done
+promptData.stopPolling();
+```
+
+**Error Handling:**
+
+```typescript
+// This will throw an error (too aggressive)
+await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 1000, // Error: minimum 5 seconds required
+});
+
+// This will work (bypass minimum interval)
+await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 1000,
+  enforceMinimumInterval: false, // Bypass minimum interval
+});
+```
+
+#### 4. Server-Sent Events (poll: "sse")
+
+**Use Case:** Ultra-low latency real-time updates.
+
+**Behavior:**
+
+- ✅ Fetches prompt immediately
+- ✅ Returns response instantly
+- ✅ Establishes SSE connection for real-time updates
+- ✅ `isPolling: true`
+
+**Example:**
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: "sse",
+});
+
+console.log(promptData.prompt); // Initial prompt
+console.log(promptData.isPolling); // true
+
+// Stop SSE connection when done
+promptData.stopPolling();
+```
+
+**Response Structure:**
+
+```typescript
+PromptrunSSEPromptImpl {
+  // Same interface as polling prompt but uses SSE
+  isPolling: true,
+  getCurrent: () => { /* returns current prompt */ },
+  stopPolling: () => { /* closes SSE connection */ },
+  getStatus: () => { /* returns SSE status */ },
+
+  // SSE-specific properties
+  eventSource: EventSource { /* browser EventSource or polyfill */ },
+  isConnected: true,
+  lastSuccessfulFetch: "2024-01-01T00:00:00Z"
+}
+```
+
+### Event Handling
+
+#### onChange Callback
+
+**Use Case:** React to prompt updates automatically.
+
+**Example:**
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 6000,
+  onChange: (changeEvent) => {
+    console.log("Prompt updated to version:", changeEvent.prompt.version);
+    console.log("What changed:", changeEvent.changes);
+  },
+});
+```
+
+**Change Event Structure:**
+
+```typescript
+{
+  prompt: PromptrunPrompt, // Updated prompt
+  previousPrompt: PromptrunPrompt, // Previous prompt
+  changes: {
+    version?: { from: number; to: number },
+    content?: { from: string; to: string },
+    temperature?: { from: number; to: number },
+    tag?: { from: string | null; to: string | null },
+    updatedAt?: { from: string; to: string }
+  }
+}
+```
+
+#### onPollingError Callback
+
+**Use Case:** Handle polling errors gracefully.
+
+**Example:**
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 6000,
+  onPollingError: (error) => {
+    console.error("Polling error:", error.message);
+    console.error("Error type:", error.type);
+    console.error("Consecutive errors:", error.consecutiveErrors);
+  },
+});
+```
+
+**Error Types:**
+
+- `"rate_limit"`: Too many requests
+- `"authentication"`: Invalid API key
+- `"network"`: Network connectivity issues
+- `"api"`: Server-side errors
+- `"configuration"`: Invalid configuration
+- `"unknown"`: Unknown errors
+
+### Manual Event Handling
+
+#### Event Listeners
+
+**Use Case:** Fine-grained control over prompt updates.
+
+**Example:**
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 6000,
+});
+
+// Add event listeners
+promptData.on("change", (changeEvent) => {
+  console.log("Prompt changed:", changeEvent.prompt.prompt);
+});
+
+promptData.on("error", (error) => {
+  console.error("Polling error:", error.message);
+});
+
+// One-time listener
+promptData.once("change", (changeEvent) => {
+  console.log("First prompt change detected");
+});
+
+// Remove listeners
+promptData.off("change"); // Remove all change listeners
+promptData.off("error", specificHandler); // Remove specific handler
+```
+
+### Enhanced Prompt Functionality
+
+#### Input Schema Validation
+
+**Use Case:** Type-safe prompt variable replacement.
+
+**Example:**
+
+```typescript
+import { z } from "zod";
+
+const inputsSchema = z.object({
+  name: z.string(),
+  age: z.number().min(0),
+  email: z.string().email(),
+});
+
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  inputsSchema,
+  inputs: {
+    name: "John",
+    age: 30,
+    email: "john@example.com",
+  },
+});
+
+console.log(promptData.prompt); // Processed prompt with variables replaced
+console.log(promptData.template); // Raw template
+console.log(promptData.inputs); // ["name", "age", "email"]
+```
+
+**Response Structure (Enhanced):**
+
+```typescript
+{
+  // Enhanced properties
+  prompt: "Hello John, you are 30 years old. Email: john@example.com",
+  inputs: ["name", "age", "email"],
+  template: "Hello {{name}}, you are {{age}} years old. Email: {{email}}",
+  version: 1,
+  model: "gpt-4",
+
+  // All standard properties included
+  id: "prompt-id",
+  versionMessage: "Enhanced Prompt",
+  tag: null,
+  temperature: 0.7,
+  user: { /* user info */ },
+  project: { /* project info */ },
+  modelInfo: { /* model info */ },
+  createdAt: "2024-01-01T00:00:00Z",
+  updatedAt: "2024-01-01T00:00:00Z",
+
+  // Polling properties (disabled for enhanced prompts)
+  isPolling: false,
+  getCurrent: () => { /* returns current prompt */ },
+  stopPolling: () => { /* no-op */ },
+  getStatus: () => ({ isPolling: false, currentInterval: 0, consecutiveErrors: 0, backoffMultiplier: 1 }),
+  onError: () => { /* no-op */ },
+  removeErrorHandler: () => { /* no-op */ },
+  on: () => { /* no-op */ },
+  off: () => { /* no-op */ },
+  once: () => { /* no-op */ }
+}
+```
+
+### Version and Tag Control
+
+#### Version-Specific Fetch
+
+**Use Case:** Fetch specific prompt versions.
+
+**Example:**
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  version: "v2",
+  poll: 0,
+});
+
+console.log(promptData.version); // 2
+console.log(promptData.versionMessage); // "Version 2"
+```
+
+#### Tagged Prompt Fetch
+
+**Use Case:** Environment-specific prompts.
+
+**Example:**
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  tag: "production",
+  poll: 0,
+});
+
+console.log(promptData.tag); // "production"
+```
+
+### Error Handling
+
+#### Authentication Errors
+
+```typescript
+try {
+  const promptData = await promptrun.prompt({
+    projectId: "your-project-id",
+    poll: 0,
+  });
+} catch (error) {
+  if (error instanceof PromptrunAuthenticationError) {
+    console.error("Invalid API key");
+  }
+}
+```
+
+#### Configuration Errors
+
+```typescript
+try {
+  const promptData = await promptrun.prompt({
+    projectId: "your-project-id",
+    poll: 1000, // Too aggressive
+  });
+} catch (error) {
+  if (error instanceof PromptrunConfigurationError) {
+    console.error("Configuration error:", error.message);
+    console.error("Parameter:", error.parameter);
+    console.error("Provided value:", error.providedValue);
+    console.error("Expected value:", error.expectedValue);
+  }
+}
+```
+
+#### Polling Errors
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 6000,
+  onPollingError: (error) => {
+    console.error("Polling failed:", error.message);
+    console.error("Error type:", error.type);
+    console.error("Consecutive errors:", error.consecutiveErrors);
+    console.error("Backoff multiplier:", error.backoffMultiplier);
+  },
+});
+```
+
+### Best Practices
+
+#### 1. Always Stop Polling
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 6000,
+});
+
+// Do your work
+console.log(promptData.prompt);
+
+// Stop polling when done
+promptData.stopPolling();
+```
+
+#### 2. Use poll: 0 for One-Time Operations
+
+If you only need to fetch a prompt once and don't want the program to stay alive:
+
+```typescript
+// ✅ Good - program exits normally
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 0, // Explicitly disable polling
+});
+
+console.log(promptData.prompt);
+// Program exits here
+```
+
+#### 3. Understanding Why Programs Don't Exit
+
+When polling is enabled (default behavior), the program doesn't exit because:
+
+- The polling mechanism uses `setTimeout` which keeps the Node.js event loop alive
+- This is intentional for long-running applications that need real-time updates
+- You must explicitly call `stopPolling()` or use `poll: 0` to allow the program to exit
+
+```typescript
+// ❌ This keeps the program running
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  // poll defaults to 6000ms
+});
+
+console.log(promptData.prompt);
+// Program continues running due to background polling
+
+// ✅ Fix: Stop polling or use poll: 0
+promptData.stopPolling();
+```
+
+#### 2. Use poll: 0 for One-Time Fetch
+
+```typescript
+// ✅ Good - no background polling
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  poll: 0,
+});
+
+// ❌ Bad - starts background polling
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  // poll defaults to 6000ms
+});
+```
+
+#### 3. Handle Errors Gracefully
+
+```typescript
+try {
+  const promptData = await promptrun.prompt({
+    projectId: "your-project-id",
+    poll: 0,
+  });
+
+  console.log(promptData.prompt);
+} catch (error) {
+  if (error instanceof PromptrunAuthenticationError) {
+    console.error("Check your API key");
+  } else if (error instanceof PromptrunConnectionError) {
+    console.error("Check your network connection");
+  } else {
+    console.error("Unexpected error:", error.message);
+  }
+}
+```
+
+#### 4. Use Enhanced Prompts for Variable Replacement
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  inputs: { name: "John", age: 30 },
+  poll: 0,
+});
+
+console.log(promptData.prompt); // Processed with variables
+console.log(promptData.template); // Raw template
+```
+
+### Common Patterns
+
+#### Long-Running Application
+
+```typescript
+class ChatBot {
+  private pollingPrompt: any;
+
+  async initialize() {
+    this.pollingPrompt = await promptrun.prompt({
+      projectId: "your-project-id",
+      poll: 6000,
+      onChange: (changeEvent) => {
+        console.log(
+          "Instructions updated to version:",
+          changeEvent.prompt.version
+        );
+      },
+    });
+  }
+
+  async chat(userMessage: string) {
+    const { text } = await generateText({
+      model: promptrun.model(this.pollingPrompt.modelInfo.model),
+      messages: [
+        { role: "system", content: this.pollingPrompt.prompt },
+        { role: "user", content: userMessage },
+      ],
+    });
+    return text;
+  }
+
+  shutdown() {
+    if (this.pollingPrompt) {
+      this.pollingPrompt.stopPolling();
+    }
+  }
+}
+
+// Usage
+const bot = new ChatBot();
+await bot.initialize();
+
+// Graceful shutdown
+process.on("SIGINT", () => {
+  bot.shutdown();
+  process.exit(0);
+});
+```
+
+#### One-Time Prompt Fetch
+
+```typescript
+async function getPrompt() {
+  const promptData = await promptrun.prompt({
+    projectId: "your-project-id",
+    poll: 0, // Important: disable polling
+  });
+
+  return promptData.prompt;
+}
+
+// Usage
+const prompt = await getPrompt();
+console.log(prompt);
+// Program exits normally
 ```
 
 ## Quick Reference
@@ -1127,7 +1745,7 @@ interface PromptrunPromptResult {
 | **Polling Updates**    | Auto-updating prompts                  | `await promptrun.prompt({ projectId, poll: 30000 })`                                  |
 | **SSE Updates**        | Real-time updates                      | `await promptrun.prompt({ projectId, poll: "sse" })`                                  |
 | **Enhanced Prompts**   | Schema validation & structured results | `await promptrun.prompt({ projectId, inputsSchema, inputs })`                         |
-| **Prompt Variables**   | Dynamic prompt content                 | `await promptrun.prompt({ projectId, inputs: { name: "John" } })`                     |
+| **Enhanced Prompts**   | Dynamic prompt content with validation | `await promptrun.prompt({ projectId, inputs: { name: "John" } })`                     |
 | **Version Control**    | Specific prompt versions               | `await promptrun.prompt({ projectId, version: "v2" })`                                |
 | **Tagged Prompts**     | Environment-specific prompts           | `await promptrun.prompt({ projectId, tag: "production" })`                            |
 | **System + User**      | AI assistants with instructions        | `messages: [{ role: "system", content: prompt }, { role: "user", content: "Hello" }]` |

@@ -20,7 +20,6 @@ export interface PromptrunLanguageModelOptions {
  */
 export interface PromptrunSDKOptions {
   apiKey: string;
-  baseURL?: string;
   headers?: Record<string, string>;
 }
 
@@ -64,11 +63,11 @@ export interface PromptrunPromptOptions {
 
   /**
    * The polling interval in milliseconds for refetching the prompt.
-   * - If omitted, uses default interval of 6000ms (6 seconds).
+   * - If omitted, defaults to 0 (no polling, one-time fetch).
    * - If set to 0, the prompt will be fetched only once (no polling).
    * - If set to a positive number, uses that interval (minimum 5000ms enforced).
    * - If set to 'sse', uses Server-Sent Events for real-time updates.
-   * @default 6000 (6 seconds polling)
+   * @default 0 (no polling)
    */
   poll?: number | "sse";
 
@@ -110,8 +109,8 @@ export interface PromptrunPromptOptions {
  */
 export interface PromptrunPromptResult {
   // Enhanced prompt properties
-  /** The system prompt with processed variables, ready to be used */
-  systemPrompt?: string;
+  /** The prompt with processed variables, ready to be used */
+  prompt?: string;
   /** Array of variables defined from the playground */
   inputs?: string[];
   /** Raw system prompt without variables */
@@ -122,8 +121,6 @@ export interface PromptrunPromptResult {
   // Legacy prompt properties
   /** The prompt ID */
   id?: string;
-  /** The raw prompt text */
-  prompt?: string;
   /** Prompt version number */
   version?: number;
   /** Version message */
@@ -162,17 +159,32 @@ export interface PromptrunPromptResult {
   /** Stops the polling for this prompt */
   stopPolling?: () => void;
   /** Gets the current polling status */
-  getStatus?: () => unknown;
+  getStatus?: () => PromptrunPollingStatus;
   /** Sets an error handler for polling errors */
-  onError?: (handler: (error: unknown) => void) => void;
+  onError?: (handler: (error: PromptrunPollingError) => void) => void;
   /** Removes the error handler */
   removeErrorHandler?: () => void;
   /** Adds a listener for prompt change events */
-  on?: unknown;
+  on?: (
+    event: "change" | "error",
+    handler:
+      | ((event: PromptrunPromptChangeEvent) => void)
+      | ((error: PromptrunPollingError) => void)
+  ) => void;
   /** Removes a listener for prompt change events */
-  off?: unknown;
+  off?: (
+    event: "change" | "error",
+    handler?:
+      | ((event: PromptrunPromptChangeEvent) => void)
+      | ((error: PromptrunPollingError) => void)
+  ) => void;
   /** Adds a one-time listener for prompt change events */
-  once?: unknown;
+  once?: (
+    event: "change" | "error",
+    handler:
+      | ((event: PromptrunPromptChangeEvent) => void)
+      | ((error: PromptrunPollingError) => void)
+  ) => void;
 }
 
 /**

@@ -61,7 +61,6 @@ describe("Promptrun SDK - Integration Tests", () => {
     test("should initialize with options object (README example)", () => {
       const promptrun = createTrackedSDK({
         apiKey: "test-api-key",
-        baseURL: "https://custom-api.example.com",
         headers: {
           "Custom-Header": "value",
         },
@@ -110,10 +109,9 @@ describe("Promptrun SDK - Integration Tests", () => {
       );
     });
 
-    test("should handle custom base URL", async () => {
+    test("should handle API calls correctly", async () => {
       const promptrun = createTrackedSDK({
         apiKey: "test-api-key",
-        baseURL: "https://custom-api.example.com/v1",
       });
       const model = promptrun.model("openai/gpt-4o");
 
@@ -129,7 +127,7 @@ describe("Promptrun SDK - Integration Tests", () => {
       });
 
       expect(global.fetch).toHaveBeenCalledWith(
-        "https://custom-api.example.com/v1/chat/completions",
+        "https://api.promptrun.ai/v1/chat/completions",
         expect.any(Object)
       );
     });

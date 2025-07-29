@@ -69,7 +69,7 @@ export class PromptrunSDK {
       projectId,
       inputsSchema,
       inputs,
-      poll = 6000, // Default to 6000ms polling when not specified
+      poll = 0, // Default to 0 (no polling) when not specified
       version,
       tag,
       onPollingError,
@@ -113,13 +113,38 @@ export class PromptrunSDK {
         extractedVariables
       );
 
-      // Return enhanced result
+      // Return enhanced result as PromptrunPromptResult
       return {
-        systemPrompt,
+        prompt: systemPrompt,
         inputs: extractedVariables,
         template: initialPrompt.prompt,
         version: initialPrompt.version,
         model: initialPrompt.model.model,
+        // Include all other properties for consistency
+        id: initialPrompt.id,
+        versionMessage: initialPrompt.versionMessage,
+        tag: initialPrompt.tag,
+        temperature: initialPrompt.temperature,
+        user: initialPrompt.user,
+        project: initialPrompt.project,
+        modelInfo: initialPrompt.model,
+        createdAt: initialPrompt.createdAt,
+        updatedAt: initialPrompt.updatedAt,
+        // Polling properties (disabled for enhanced prompts)
+        isPolling: false,
+        getCurrent: () => initialPrompt,
+        stopPolling: () => {},
+        getStatus: () => ({
+          isPolling: false,
+          currentInterval: 0,
+          consecutiveErrors: 0,
+          backoffMultiplier: 1,
+        }),
+        onError: () => {},
+        removeErrorHandler: () => {},
+        on: () => {},
+        off: () => {},
+        once: () => {},
       };
     }
 
@@ -135,7 +160,7 @@ export class PromptrunSDK {
         onChange
       );
 
-      // Return the SSE prompt directly for backward compatibility
+      // Return the SSE prompt as PromptrunPromptResult
       return ssePrompt as unknown as PromptrunPromptResult;
     } else if (typeof poll === "number" && poll > 0) {
       // Use polling with specified interval
@@ -151,14 +176,15 @@ export class PromptrunSDK {
         onChange
       );
 
-      // Return the polling prompt directly for backward compatibility
+      // Return the polling prompt as PromptrunPromptResult
       return pollingPrompt as unknown as PromptrunPromptResult;
     }
 
-    // Return the original prompt object transformed to unified format
+    // Return the original prompt object as PromptrunPromptResult (when poll: 0)
     return {
       id: initialPrompt.id,
       prompt: initialPrompt.prompt,
+      template: initialPrompt.prompt,
       version: initialPrompt.version,
       versionMessage: initialPrompt.versionMessage,
       tag: initialPrompt.tag,
@@ -168,6 +194,21 @@ export class PromptrunSDK {
       modelInfo: initialPrompt.model,
       createdAt: initialPrompt.createdAt,
       updatedAt: initialPrompt.updatedAt,
+      // Polling properties (disabled when poll: 0)
+      isPolling: false,
+      getCurrent: () => initialPrompt,
+      stopPolling: () => {},
+      getStatus: () => ({
+        isPolling: false,
+        currentInterval: 0,
+        consecutiveErrors: 0,
+        backoffMultiplier: 1,
+      }),
+      onError: () => {},
+      removeErrorHandler: () => {},
+      on: () => {},
+      off: () => {},
+      once: () => {},
     };
   }
 
@@ -186,8 +227,6 @@ export class PromptrunSDK {
     version?: string,
     tag?: string
   ): Promise<PromptrunPrompt> {
-    const baseUrl = this.options.baseURL ?? "https://api.promptrun.ai/v1";
-
     // Build query parameters
     const queryParams = new URLSearchParams({
       projectId: projectId,
@@ -201,7 +240,7 @@ export class PromptrunSDK {
       queryParams.append("tag", tag);
     }
 
-    const url = `${baseUrl}/prompt?${queryParams.toString()}`;
+    const url = `https://api.promptrun.ai/v1/prompt?${queryParams.toString()}`;
 
     try {
       const response = await fetch(url, {

@@ -42,7 +42,6 @@ describe("Unit Test: PromptrunSDK Provider", () => {
   it("should initialize correctly with an options object", () => {
     const sdk = new PromptrunSDK({
       apiKey: "my-api-key",
-      baseURL: "http://localhost",
     });
     expect(sdk).toBeInstanceOf(PromptrunSDK);
   });
@@ -331,10 +330,9 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       );
     });
 
-    test("should handle custom baseURL with new query parameters", async () => {
+    test("should handle query parameters correctly", async () => {
       const sdk = new PromptrunSDK({
         apiKey: "test-key",
-        baseURL: "http://localhost:3000/v1",
       });
       fetchMock.mockResponse(JSON.stringify(mockPrompt));
 
@@ -345,7 +343,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "http://localhost:3000/v1/prompt?projectId=proj-123&version=v1&tag=dev",
+        "https://api.promptrun.ai/v1/prompt?projectId=proj-123&version=v1&tag=dev",
         expect.any(Object)
       );
     });
@@ -447,10 +445,11 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         poll: 0, // Explicitly disable polling
       });
 
-      // Should be a regular prompt, not a polling prompt
-      expect(result).not.toHaveProperty("getCurrent");
-      expect(result).not.toHaveProperty("stopPolling");
-      expect(result).not.toHaveProperty("isPolling");
+      // Should be a regular prompt with polling properties (disabled)
+      expect(result).toHaveProperty("getCurrent");
+      expect(result).toHaveProperty("stopPolling");
+      expect(result).toHaveProperty("isPolling");
+      expect(result.isPolling).toBe(false);
 
       expect(result.prompt).toBe("Static prompt text");
       expect(result.version).toBe(1);
@@ -750,22 +749,20 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         },
       };
 
-      // Test default behavior - should poll with 6000ms when no poll parameter
+      // Test default behavior - should not poll when no poll parameter
       fetchMock.mockResponseOnce(JSON.stringify(initialPrompt));
 
       const defaultResult = await sdk.prompt({
         projectId: "proj-123",
-        // No poll parameter - should default to 6000ms polling
+        // No poll parameter - should default to 0 (no polling)
       });
 
       expect(defaultResult).toHaveProperty("isPolling");
-      expect((defaultResult as any).isPolling).toBe(true);
+      expect((defaultResult as any).isPolling).toBe(false);
 
-      // Check that it uses 6000ms interval
+      // Check that it uses 0ms interval (no polling)
       const status = (defaultResult as any).getStatus();
-      expect(status.currentInterval).toBe(6000);
-
-      (defaultResult as any).stopPolling();
+      expect(status.currentInterval).toBe(0);
 
       // Test poll: 0 should disable polling
       fetchMock.mockResponseOnce(JSON.stringify(initialPrompt));
@@ -775,8 +772,9 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         poll: 0, // Explicitly disable polling
       });
 
-      expect(nonPollingResult).not.toHaveProperty("isPolling");
-      expect(nonPollingResult).not.toHaveProperty("getStatus");
+      expect(nonPollingResult).toHaveProperty("isPolling");
+      expect(nonPollingResult).toHaveProperty("getStatus");
+      expect(nonPollingResult.isPolling).toBe(false);
 
       // Test custom interval still works
       fetchMock.mockResponseOnce(JSON.stringify(initialPrompt));
@@ -953,11 +951,12 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         poll: 0, // No polling
       });
 
-      // Should be regular prompt without polling methods
+      // Should be regular prompt with polling methods (disabled)
       expect(result.prompt).toBe("Test prompt");
-      expect(result).not.toHaveProperty("on");
-      expect(result).not.toHaveProperty("stopPolling");
-      expect(result).not.toHaveProperty("isPolling");
+      expect(result).toHaveProperty("on");
+      expect(result).toHaveProperty("stopPolling");
+      expect(result).toHaveProperty("isPolling");
+      expect(result.isPolling).toBe(false);
     });
 
     test("should support SSE polling with poll: 'sse'", async () => {
@@ -1120,14 +1119,20 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         inputs,
       });
 
-      expect(result).toEqual({
-        systemPrompt: "Analyze John Doe's ETH on ethereum. Address: 0xabc...",
-        inputs: ["user.name", "token.symbol", "token.chain", "token.address"],
-        template:
-          "Analyze {{user.name}}'s {{token.symbol}} on {{token.chain}}. Address: {{token.address}}",
-        version: 2,
-        model: "gpt-4",
-      });
+      expect(result.prompt).toBe(
+        "Analyze John Doe's ETH on ethereum. Address: 0xabc..."
+      );
+      expect(result.inputs).toEqual([
+        "user.name",
+        "token.symbol",
+        "token.chain",
+        "token.address",
+      ]);
+      expect(result.template).toBe(
+        "Analyze {{user.name}}'s {{token.symbol}} on {{token.chain}}. Address: {{token.address}}"
+      );
+      expect(result.version).toBe(2);
+      expect(result.model).toBe("gpt-4");
     });
 
     test("should return structured result with schema validation", async () => {
@@ -1151,15 +1156,15 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         inputs,
       })) as unknown as PromptrunPromptResult;
 
-      expect(result).toEqual({
-        systemPrompt:
-          "Analyze the ETH token on ethereum blockchain. Address: 0xabc...",
-        inputs: ["symbol", "chain", "address"],
-        template:
-          "Analyze the {{symbol}} token on {{chain}} blockchain. Address: {{address}}",
-        version: 2,
-        model: "gpt-4",
-      });
+      expect(result.prompt).toBe(
+        "Analyze the ETH token on ethereum blockchain. Address: 0xabc..."
+      );
+      expect(result.inputs).toEqual(["symbol", "chain", "address"]);
+      expect(result.template).toBe(
+        "Analyze the {{symbol}} token on {{chain}} blockchain. Address: {{address}}"
+      );
+      expect(result.version).toBe(2);
+      expect(result.model).toBe("gpt-4");
     });
 
     test("should throw error for invalid inputs with schema", async () => {
@@ -1200,15 +1205,15 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         inputs,
       })) as unknown as PromptrunPromptResult;
 
-      expect(result).toEqual({
-        systemPrompt:
-          "Analyze the ETH token on ethereum blockchain. Address: 0xabc...",
-        inputs: ["symbol", "chain", "address"],
-        template:
-          "Analyze the {{symbol}} token on {{chain}} blockchain. Address: {{address}}",
-        version: 2,
-        model: "gpt-4",
-      });
+      expect(result.prompt).toBe(
+        "Analyze the ETH token on ethereum blockchain. Address: 0xabc..."
+      );
+      expect(result.inputs).toEqual(["symbol", "chain", "address"]);
+      expect(result.template).toBe(
+        "Analyze the {{symbol}} token on {{chain}} blockchain. Address: {{address}}"
+      );
+      expect(result.version).toBe(2);
+      expect(result.model).toBe("gpt-4");
     });
 
     test("should show warning for missing variables", async () => {
@@ -1225,7 +1230,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         inputs,
       })) as unknown as PromptrunPromptResult;
 
-      expect(result.systemPrompt).toBe(
+      expect(result.prompt).toBe(
         "Analyze the ETH token on {{chain}} blockchain. Address: {{address}}"
       );
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -1247,13 +1252,13 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         inputs: {}, // Provide empty inputs to trigger enhanced mode
       })) as unknown as PromptrunPromptResult;
 
-      expect(result).toEqual({
-        systemPrompt: "This is a simple prompt without variables.",
-        inputs: [],
-        template: "This is a simple prompt without variables.",
-        version: 2,
-        model: "gpt-4",
-      });
+      expect(result.prompt).toBe("This is a simple prompt without variables.");
+      expect(result.inputs).toEqual([]);
+      expect(result.template).toBe(
+        "This is a simple prompt without variables."
+      );
+      expect(result.version).toBe(2);
+      expect(result.model).toBe("gpt-4");
     });
   });
 });
