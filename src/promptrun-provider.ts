@@ -86,10 +86,13 @@ export class PromptrunSDK {
       const extractedVariables = extractPromptVariables(initialPrompt.prompt);
 
       // Process the prompt with inputs (validation if schema provided)
-      let processedInputs = inputs || {};
+      let processedInputs: Record<string, unknown> = inputs || {};
       if (inputsSchema && inputs) {
         try {
-          processedInputs = validateInputs(inputs, inputsSchema);
+          processedInputs = validateInputs(inputs, inputsSchema) as Record<
+            string,
+            unknown
+          >;
         } catch (error) {
           throw new PromptrunConfigurationError(
             `Input validation failed: ${
