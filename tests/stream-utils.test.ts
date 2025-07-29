@@ -1,6 +1,7 @@
 import { LanguageModelV1StreamPart } from "@ai-sdk/provider";
 import {
   createPromptrunStream,
+  extractPromptVariables,
   parsePromptVariables,
 } from "../src/stream-utils";
 
@@ -251,5 +252,76 @@ describe("parsePromptVariables", () => {
 
     const result = parsePromptVariables(prompt, variables);
     expect(result).toBe("Hello John! How are you, John?");
+  });
+});
+
+describe("extractPromptVariables", () => {
+  test("should extract variables from prompt with single variable", () => {
+    const prompt = "Hello {{name}}, how are you?";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual(["name"]);
+  });
+
+  test("should extract variables from prompt with multiple variables", () => {
+    const prompt =
+      "Hello {{name}}, you are {{age}} years old and live in {{city}}.";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual(["name", "age", "city"]);
+  });
+
+  test("should extract nested object variables", () => {
+    const prompt =
+      "Hello {{user.name}}, your ID is {{user.id}} and you work at {{company.name}}.";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual(["user.name", "user.id", "company.name"]);
+  });
+
+  test("should return empty array when prompt has no variables", () => {
+    const prompt = "This is a simple prompt without any variables.";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual([]);
+  });
+
+  test("should return empty array for empty prompt", () => {
+    const prompt = "";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual([]);
+  });
+
+  test("should remove duplicate variables", () => {
+    const prompt = "Hello {{name}}, {{name}}! How are you, {{name}}?";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual(["name"]);
+  });
+
+  test("should handle variables with special characters in names", () => {
+    const prompt =
+      "Hello {{user_name}}, your email is {{user.email}} and your ID is {{user-id}}.";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual(["user_name", "user.email", "user-id"]);
+  });
+
+  test("should handle variables with numbers", () => {
+    const prompt =
+      "User {{user1}} and {{user2}} are friends with {{user_123}}.";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual(["user1", "user2", "user_123"]);
+  });
+
+  test("should handle complex nested variables", () => {
+    const prompt =
+      "Hello {{user.profile.name}}, your settings are {{user.settings.theme}} and {{user.settings.language}}.";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual([
+      "user.profile.name",
+      "user.settings.theme",
+      "user.settings.language",
+    ]);
+  });
+
+  test("should handle variables with underscores and dots", () => {
+    const prompt = "{{api_key}} and {{database.name}} and {{redis_url}}";
+    const result = extractPromptVariables(prompt);
+    expect(result).toEqual(["api_key", "database.name", "redis_url"]);
   });
 });

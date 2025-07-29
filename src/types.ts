@@ -290,6 +290,8 @@ export interface PromptrunPrompt {
   prompt: string;
   /** The processed prompt with variables replaced */
   processedPrompt?: string;
+  /** Array of variables defined from the playground */
+  inputs?: string[];
   version: number;
   versionMessage: string;
   tag: string | null;

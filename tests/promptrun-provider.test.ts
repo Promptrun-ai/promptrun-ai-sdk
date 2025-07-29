@@ -1261,4 +1261,196 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       expect(result.model).toBe("gpt-4");
     });
   });
+
+  describe("Inputs extraction functionality", () => {
+    const mockPromptResponse = {
+      id: "test-prompt-id",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      version: 1,
+      versionMessage: "Test version",
+      tag: null,
+      temperature: 0.7,
+      user: { id: "user-1", clerkId: "clerk-1" },
+      project: { id: "project-1", name: "Test Project" },
+      model: {
+        name: "GPT-4",
+        provider: "openai",
+        model: "gpt-4",
+        icon: "openai-icon",
+      },
+    };
+
+    test("should extract variables and return empty array when prompt has no variables", async () => {
+      const promptWithoutVariables = {
+        ...mockPromptResponse,
+        prompt: "This is a simple prompt without any variables.",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithoutVariables));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+      });
+
+      expect(result.inputs).toEqual([]);
+      expect(result.prompt).toBe(
+        "This is a simple prompt without any variables."
+      );
+    });
+
+    test("should extract variables when prompt has single variable", async () => {
+      const promptWithSingleVariable = {
+        ...mockPromptResponse,
+        prompt: "Hello {{name}}, how are you?",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithSingleVariable));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+      });
+
+      expect(result.inputs).toEqual(["name"]);
+      expect(result.prompt).toBe("Hello {{name}}, how are you?");
+    });
+
+    test("should extract variables when prompt has multiple variables", async () => {
+      const promptWithMultipleVariables = {
+        ...mockPromptResponse,
+        prompt:
+          "Hello {{name}}, you are {{age}} years old and live in {{city}}.",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithMultipleVariables));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+      });
+
+      expect(result.inputs).toEqual(["name", "age", "city"]);
+      expect(result.prompt).toBe(
+        "Hello {{name}}, you are {{age}} years old and live in {{city}}."
+      );
+    });
+
+    test("should extract variables when prompt has nested object variables", async () => {
+      const promptWithNestedVariables = {
+        ...mockPromptResponse,
+        prompt:
+          "Hello {{user.name}}, your ID is {{user.id}} and you work at {{company.name}}.",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithNestedVariables));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+      });
+
+      expect(result.inputs).toEqual(["user.name", "user.id", "company.name"]);
+      expect(result.prompt).toBe(
+        "Hello {{user.name}}, your ID is {{user.id}} and you work at {{company.name}}."
+      );
+    });
+
+    test("should extract variables and remove duplicates", async () => {
+      const promptWithDuplicateVariables = {
+        ...mockPromptResponse,
+        prompt: "Hello {{name}}, {{name}}! How are you, {{name}}?",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithDuplicateVariables));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+      });
+
+      expect(result.inputs).toEqual(["name"]);
+      expect(result.prompt).toBe(
+        "Hello {{name}}, {{name}}! How are you, {{name}}?"
+      );
+    });
+
+    test("should extract variables in polling mode", async () => {
+      const promptWithVariables = {
+        ...mockPromptResponse,
+        prompt: "Hello {{name}}, welcome to {{platform}}!",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithVariables));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+        poll: 10000, // 10 seconds
+      });
+
+      expect(result.inputs).toEqual(["name", "platform"]);
+      expect(result.isPolling).toBeDefined();
+
+      // Clean up
+      if (result.stopPolling) {
+        result.stopPolling();
+      }
+    });
+
+    test("should extract variables in SSE mode", async () => {
+      const promptWithVariables = {
+        ...mockPromptResponse,
+        prompt: "Hello {{name}}, welcome to {{platform}}!",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithVariables));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+        poll: "sse",
+      });
+
+      expect(result.inputs).toEqual(["name", "platform"]);
+      expect(result.isPolling).toBeDefined();
+
+      // Clean up
+      if (result.stopPolling) {
+        result.stopPolling();
+      }
+    });
+
+    test("should extract variables when inputs are provided but not processed", async () => {
+      const promptWithVariables = {
+        ...mockPromptResponse,
+        prompt: "Hello {{name}}, you are {{age}} years old.",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithVariables));
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+        inputs: { name: "John", age: 30 },
+      });
+
+      expect(result.inputs).toEqual(["name", "age"]);
+      expect(result.prompt).toBe("Hello John, you are 30 years old.");
+      expect(result.template).toBe(
+        "Hello {{name}}, you are {{age}} years old."
+      );
+    });
+
+    test("should extract variables when inputsSchema is provided but no inputs", async () => {
+      const promptWithVariables = {
+        ...mockPromptResponse,
+        prompt: "Hello {{name}}, you are {{age}} years old.",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithVariables));
+
+      const inputsSchema = z.object({
+        name: z.string(),
+        age: z.number(),
+      });
+
+      // Mock console.warn to suppress the warning about missing variables
+      const consoleSpy = jest.spyOn(console, "warn").mockImplementation();
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+        inputsSchema,
+      });
+
+      expect(result.inputs).toEqual(["name", "age"]);
+      expect(result.prompt).toBe("Hello {{name}}, you are {{age}} years old.");
+
+      consoleSpy.mockRestore();
+    });
+  });
 });

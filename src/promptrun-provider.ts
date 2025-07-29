@@ -80,13 +80,20 @@ export class PromptrunSDK {
     // Fetch the prompt once
     const initialPrompt = await this.fetchPromptOnce(projectId, version, tag);
 
+    // Extract variables from the prompt template in any case
+    const extractedVariables = extractPromptVariables(initialPrompt.prompt);
+
+    // Set the inputs field on the initial prompt
+    initialPrompt.inputs = extractedVariables;
+
     // Enhanced functionality: Use enhanced processing when inputsSchema or inputs are provided
     if (inputsSchema || inputs) {
-      // Extract variables from the prompt template
-      const extractedVariables = extractPromptVariables(initialPrompt.prompt);
-
       // Process the prompt with inputs (validation if schema provided)
-      let processedInputs: Record<string, unknown> = inputs || {};
+      let processedInputs: Record<string, unknown> = {};
+      if (inputs) {
+        processedInputs = inputs;
+      }
+
       if (inputsSchema && inputs) {
         try {
           processedInputs = validateInputs(inputs, inputsSchema) as Record<
@@ -185,6 +192,7 @@ export class PromptrunSDK {
       id: initialPrompt.id,
       prompt: initialPrompt.prompt,
       template: initialPrompt.prompt,
+      inputs: extractedVariables,
       version: initialPrompt.version,
       versionMessage: initialPrompt.versionMessage,
       tag: initialPrompt.tag,

@@ -98,6 +98,10 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     return this.currentPrompt.prompt;
   }
 
+  get inputs(): string[] | undefined {
+    return this.currentPrompt.inputs;
+  }
+
   get processedPrompt(): string | undefined {
     return this.currentPrompt.processedPrompt;
   }
@@ -577,6 +581,10 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
 
   get prompt(): string {
     return this.currentPrompt.prompt;
+  }
+
+  get inputs(): string[] | undefined {
+    return this.currentPrompt.inputs;
   }
 
   get processedPrompt(): string | undefined {
