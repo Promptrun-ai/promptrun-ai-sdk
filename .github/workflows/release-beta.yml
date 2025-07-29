@@ -2,7 +2,8 @@ name: Release Beta
 
 on:
   push:
-    branches: [beta]
+    tags:
+      - "v*-beta.*"
 
 jobs:
   release:
@@ -36,28 +37,16 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create beta version
+      - name: Extract version from tag
         run: |
-          # Get current version and increment beta number
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          # Extract version from the git tag that triggered this workflow
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
 
-          # Extract base version (e.g., "1.0.1" from "1.0.1-beta.1")
-          BASE_VERSION=$(echo $CURRENT_VERSION | sed 's/-beta\.[0-9]*//')
+          echo "Extracted version from tag: $VERSION"
 
-          # Extract beta number or start at 1
-          if [[ $CURRENT_VERSION =~ -beta\.([0-9]+) ]]; then
-            BETA_NUM=$((BASH_REMATCH[1] + 1))
-          else
-            BETA_NUM=1
-          fi
-
-          # Create clean beta version
-          BETA_VERSION="${BASE_VERSION}-beta.${BETA_NUM}"
-
-          echo "Creating beta version: $BETA_VERSION"
-
-          # Update package.json version
-          npm version $BETA_VERSION --no-git-tag-version
+          # Update package.json to match the tag version
+          npm version $VERSION --no-git-tag-version
 
           # Temporarily disable changeset configuration for beta releases
           mv .changeset .changeset.backup || true
@@ -67,19 +56,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Create Git tag
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          git tag -a "v${VERSION}" -m "Beta release ${VERSION}"
-          git push origin "v${VERSION}"
-
       - name: Restore changeset configuration
         run: |
           # Restore changeset configuration
           mv .changeset.backup .changeset || true
-
-      - name: Commit version bump
-        run: |
-          git add .
-          git commit -m "chore: bump version to ${VERSION} [skip ci]" || true
-          git push origin beta
