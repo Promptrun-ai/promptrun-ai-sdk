@@ -292,7 +292,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/prompt?projectId=proj-123&version=v2&tag=staging",
+        "https://api.promptrun.ai/v1/prompt?projectId=proj-123&version=v2&tag=staging",
         expect.any(Object)
       );
     });
@@ -325,7 +325,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
       expect(result.prompt).toBe("You are a test assistant.");
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/prompt?projectId=proj-123&version=v1&tag=production",
+        "https://api.promptrun.ai/v1/prompt?projectId=proj-123&version=v1&tag=production",
         expect.any(Object)
       );
     });
@@ -343,7 +343,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/prompt?projectId=proj-123&version=v1&tag=dev",
+        "https://api.promptrun.ai/v1/prompt?projectId=proj-123&version=v1&tag=dev",
         expect.any(Object)
       );
     });
