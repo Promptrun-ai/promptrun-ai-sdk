@@ -54,7 +54,6 @@ const promptrun = new PromptrunSDK({
 // 2. Fetch your prompt from the dashboard
 const promptData = await promptrun.prompt({
   projectId: "YOUR_PROJECT_ID",
-  poll: 30000, // Auto-update every 30 seconds*
 });
 
 // 3. Use with any LLM model
