@@ -17,7 +17,11 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint src tests --ext .ts,.js",
     "lint:fix": "eslint src tests --ext .ts,.js --fix",
-    "lint:check": "eslint src tests --ext .ts,.js --max-warnings 0"
+    "lint:check": "eslint src tests --ext .ts,.js --max-warnings 0",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish",
+    "beta": "./scripts/beta-release.sh"
   },
   "exports": {
     "./package.json": "./package.json",
@@ -50,6 +54,7 @@
   "license": "MIT",
   "description": "Promptrun AI SDK for Node.js",
   "devDependencies": {
+    "@changesets/cli": "^2.29.5",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.14.2",
     "@typescript-eslint/eslint-plugin": "^8.0.0-alpha.21",

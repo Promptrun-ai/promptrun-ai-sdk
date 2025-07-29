@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /**
  * Defines configuration options for a specific language model instance,
  * primarily for controlling caching behavior.
@@ -48,11 +50,17 @@ export interface PromptrunPromptOptions {
   projectId: string;
 
   /**
-   * Variables to replace in the prompt string.
-   * Variables in the prompt should be in the format {{variable_name}}.
-   * These will be replaced with the corresponding values from this object.
+   * Zod schema for validating input variables.
+   * This schema defines the expected types and structure of the inputs.
+   * Supports nested objects and complex validation rules.
    */
-  variables?: Record<string, string | number | boolean>;
+  inputsSchema?: z.ZodSchema<unknown>;
+
+  /**
+   * Input variables that match the inputsSchema.
+   * These will be validated against the schema and used to replace variables in the prompt.
+   */
+  inputs?: Record<string, unknown>;
 
   /**
    * The polling interval in milliseconds for refetching the prompt.
@@ -94,6 +102,77 @@ export interface PromptrunPromptOptions {
    * @default true
    */
   enforceMinimumInterval?: boolean;
+}
+
+/**
+ * Unified result object returned by the prompt() method
+ * Properties are optional based on the method used (enhanced vs legacy)
+ */
+export interface PromptrunPromptResult {
+  // Enhanced prompt properties
+  /** The system prompt with processed variables, ready to be used */
+  systemPrompt?: string;
+  /** Array of variables defined from the playground */
+  inputs?: string[];
+  /** Raw system prompt without variables */
+  template?: string;
+  /** The model name associated with the prompt */
+  model?: string;
+
+  // Legacy prompt properties
+  /** The prompt ID */
+  id?: string;
+  /** The raw prompt text */
+  prompt?: string;
+  /** Prompt version number */
+  version?: number;
+  /** Version message */
+  versionMessage?: string;
+  /** Prompt tag */
+  tag?: string | null;
+  /** Temperature setting */
+  temperature?: number;
+  /** User information */
+  user?: {
+    id: string;
+    clerkId: string;
+  };
+  /** Project information */
+  project?: {
+    id: string;
+    name: string;
+  };
+  /** Full model information */
+  modelInfo?: {
+    name: string;
+    provider: string;
+    model: string;
+    icon: string;
+  };
+  /** Creation timestamp */
+  createdAt?: string;
+  /** Last update timestamp */
+  updatedAt?: string;
+
+  // Polling properties
+  /** Whether polling is currently active */
+  isPolling?: boolean;
+  /** Gets the current prompt data */
+  getCurrent?: () => unknown;
+  /** Stops the polling for this prompt */
+  stopPolling?: () => void;
+  /** Gets the current polling status */
+  getStatus?: () => unknown;
+  /** Sets an error handler for polling errors */
+  onError?: (handler: (error: unknown) => void) => void;
+  /** Removes the error handler */
+  removeErrorHandler?: () => void;
+  /** Adds a listener for prompt change events */
+  on?: unknown;
+  /** Removes a listener for prompt change events */
+  off?: unknown;
+  /** Adds a one-time listener for prompt change events */
+  once?: unknown;
 }
 
 /**

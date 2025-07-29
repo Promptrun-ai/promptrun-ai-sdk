@@ -4,15 +4,20 @@ import {
   PromptrunPollingPromptImpl,
   PromptrunSSEPromptImpl,
 } from "./promptrun-polling-prompt";
-import { parsePromptVariables } from "./stream-utils";
+import {
+  extractPromptVariables,
+  processPromptWithInputs,
+  validateInputs,
+} from "./stream-utils";
 import {
   PromptrunAPIError,
   PromptrunAuthenticationError,
+  PromptrunConfigurationError,
   PromptrunConnectionError,
   PromptrunLanguageModelOptions,
-  PromptrunPollingPrompt,
   PromptrunPrompt,
   PromptrunPromptOptions,
+  PromptrunPromptResult,
   PromptrunSDKOptions,
 } from "./types";
 
@@ -56,33 +61,14 @@ export class PromptrunSDK {
    * @returns {Promise<PromptrunPrompt | PromptrunPollingPrompt>} A promise that resolves to the prompt data or a polling prompt.
    */
 
-  // Overload for when poll is 0 - returns regular prompt
-  async prompt(
-    options: PromptrunPromptOptions & { poll: 0 }
-  ): Promise<PromptrunPrompt>;
-
-  // Overload for when poll is a positive number - returns polling prompt
-  async prompt(
-    options: PromptrunPromptOptions & { poll: number }
-  ): Promise<PromptrunPollingPrompt>;
-
-  // Overload for when poll is 'sse' - returns polling prompt
-  async prompt(
-    options: PromptrunPromptOptions & { poll: "sse" }
-  ): Promise<PromptrunPollingPrompt>;
-
-  // Overload for when poll is undefined - returns polling prompt (default behavior)
-  async prompt(
-    options: Omit<PromptrunPromptOptions, "poll">
-  ): Promise<PromptrunPollingPrompt>;
-
-  // Implementation
+  // Unified implementation
   async prompt(
     options: PromptrunPromptOptions
-  ): Promise<PromptrunPrompt | PromptrunPollingPrompt> {
+  ): Promise<PromptrunPromptResult> {
     const {
       projectId,
-      variables,
+      inputsSchema,
+      inputs,
       poll = 6000, // Default to 6000ms polling when not specified
       version,
       tag,
@@ -94,18 +80,50 @@ export class PromptrunSDK {
     // Fetch the prompt once
     const initialPrompt = await this.fetchPromptOnce(projectId, version, tag);
 
-    // Process variables if provided
-    if (variables) {
-      initialPrompt.processedPrompt = parsePromptVariables(
+    // Enhanced functionality: Use enhanced processing when inputsSchema or inputs are provided
+    if (inputsSchema || inputs) {
+      // Extract variables from the prompt template
+      const extractedVariables = extractPromptVariables(initialPrompt.prompt);
+
+      // Process the prompt with inputs (validation if schema provided)
+      let processedInputs = inputs || {};
+      if (inputsSchema && inputs) {
+        try {
+          processedInputs = validateInputs(inputs, inputsSchema);
+        } catch (error) {
+          throw new PromptrunConfigurationError(
+            `Input validation failed: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+            {
+              parameter: "inputs",
+              providedValue: inputs,
+              expectedValue: "Valid input matching the provided schema",
+            }
+          );
+        }
+      }
+
+      const systemPrompt = processPromptWithInputs(
         initialPrompt.prompt,
-        variables
+        processedInputs,
+        extractedVariables
       );
+
+      // Return enhanced result
+      return {
+        systemPrompt,
+        inputs: extractedVariables,
+        template: initialPrompt.prompt,
+        version: initialPrompt.version,
+        model: initialPrompt.model.model,
+      };
     }
 
-    // Handle polling logic
+    // Handle polling logic for legacy behavior
     if (poll === "sse") {
       // Use SSE for real-time updates
-      return new PromptrunSSEPromptImpl(
+      const ssePrompt = new PromptrunSSEPromptImpl(
         initialPrompt,
         this.options,
         projectId,
@@ -113,9 +131,33 @@ export class PromptrunSDK {
         tag,
         onChange
       );
+
+      // Transform to unified format
+      return {
+        id: initialPrompt.id,
+        prompt: initialPrompt.prompt,
+        version: initialPrompt.version,
+        versionMessage: initialPrompt.versionMessage,
+        tag: initialPrompt.tag,
+        temperature: initialPrompt.temperature,
+        user: initialPrompt.user,
+        project: initialPrompt.project,
+        modelInfo: initialPrompt.model,
+        createdAt: initialPrompt.createdAt,
+        updatedAt: initialPrompt.updatedAt,
+        isPolling: ssePrompt.isPolling,
+        getCurrent: ssePrompt.getCurrent,
+        stopPolling: ssePrompt.stopPolling,
+        getStatus: ssePrompt.getStatus,
+        onError: ssePrompt.onError,
+        removeErrorHandler: ssePrompt.removeErrorHandler,
+        on: ssePrompt.on,
+        off: ssePrompt.off,
+        once: ssePrompt.once,
+      };
     } else if (typeof poll === "number" && poll > 0) {
       // Use polling with specified interval
-      return new PromptrunPollingPromptImpl(
+      const pollingPrompt = new PromptrunPollingPromptImpl(
         initialPrompt,
         this.options,
         projectId,
@@ -126,9 +168,46 @@ export class PromptrunSDK {
         enforceMinimumInterval,
         onChange
       );
+
+      // Transform to unified format
+      return {
+        id: initialPrompt.id,
+        prompt: initialPrompt.prompt,
+        version: initialPrompt.version,
+        versionMessage: initialPrompt.versionMessage,
+        tag: initialPrompt.tag,
+        temperature: initialPrompt.temperature,
+        user: initialPrompt.user,
+        project: initialPrompt.project,
+        modelInfo: initialPrompt.model,
+        createdAt: initialPrompt.createdAt,
+        updatedAt: initialPrompt.updatedAt,
+        isPolling: pollingPrompt.isPolling,
+        getCurrent: pollingPrompt.getCurrent,
+        stopPolling: pollingPrompt.stopPolling,
+        getStatus: pollingPrompt.getStatus,
+        onError: pollingPrompt.onError,
+        removeErrorHandler: pollingPrompt.removeErrorHandler,
+        on: pollingPrompt.on,
+        off: pollingPrompt.off,
+        once: pollingPrompt.once,
+      };
     }
 
-    return initialPrompt;
+    // Return the original prompt object transformed to unified format
+    return {
+      id: initialPrompt.id,
+      prompt: initialPrompt.prompt,
+      version: initialPrompt.version,
+      versionMessage: initialPrompt.versionMessage,
+      tag: initialPrompt.tag,
+      temperature: initialPrompt.temperature,
+      user: initialPrompt.user,
+      project: initialPrompt.project,
+      modelInfo: initialPrompt.model,
+      createdAt: initialPrompt.createdAt,
+      updatedAt: initialPrompt.updatedAt,
+    };
   }
 
   /**

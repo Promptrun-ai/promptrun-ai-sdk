@@ -1,0 +1,84 @@
+name: Create Changeset
+
+on:
+  workflow_dispatch:
+    inputs:
+      type:
+        description: "Type of change"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      summary:
+        description: "Summary of changes"
+        required: true
+        type: string
+      description:
+        description: "Detailed description (optional)"
+        required: false
+        type: string
+
+jobs:
+  create-changeset:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create changeset
+        run: |
+          # Create changeset content
+          CHANGESET_CONTENT="---
+          \"@promptrun-ai/sdk\": ${{ github.event.inputs.type }}
+          ---
+
+          ${{ github.event.inputs.summary }}
+          "
+
+          # Add description if provided
+          if [ -n "${{ github.event.inputs.description }}" ]; then
+            CHANGESET_CONTENT="$CHANGESET_CONTENT
+
+          ${{ github.event.inputs.description }}"
+          fi
+
+          # Create changeset file
+          TIMESTAMP=$(date +%s)
+          echo "$CHANGESET_CONTENT" > .changeset/changeset-${TIMESTAMP}.md
+
+          # Commit and push changeset
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .changeset/
+          git commit -m "chore: add changeset for ${{ github.event.inputs.type }} release"
+          git push origin ${{ github.head_ref }}
+
+      - name: Create Pull Request
+        if: github.ref != 'refs/heads/main'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: add changeset for ${{ github.event.inputs.type }} release"
+          title: "chore: add changeset for ${{ github.event.inputs.type }} release"
+          body: |
+            This PR adds a changeset for a ${{ github.event.inputs.type }} release.
+
+            **Summary:** ${{ github.event.inputs.summary }}
+
+            ${{ github.event.inputs.description }}
+          branch: changeset-${{ github.run_id }}
+          delete-branch: true

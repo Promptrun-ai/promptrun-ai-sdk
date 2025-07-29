@@ -1,10 +1,13 @@
 import fetchMock from "jest-fetch-mock";
+import { z } from "zod";
 import { PromptrunLanguageModel } from "../src/promptrun-language-model";
 import { PromptrunSDK } from "../src/promptrun-provider";
 import {
   PromptrunAPIError,
   PromptrunAuthenticationError,
+  PromptrunConfigurationError,
   PromptrunPrompt,
+  PromptrunPromptResult,
 } from "../src/types";
 
 describe("Unit Test: PromptrunSDK Provider", () => {
@@ -345,86 +348,6 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         "http://localhost:3000/v1/prompt?projectId=proj-123&version=v1&tag=dev",
         expect.any(Object)
       );
-    });
-  });
-
-  describe("prompt() method with variables", () => {
-    test("should process variables and add processedPrompt field", async () => {
-      const mockPromptResponse: PromptrunPrompt = {
-        id: "test-id",
-        createdAt: "2023-01-01T00:00:00Z",
-        updatedAt: "2023-01-01T00:00:00Z",
-        prompt: "Hello {{name}}, welcome to {{platform}}!",
-        version: 1,
-        versionMessage: "Initial version",
-        tag: null,
-        temperature: 0.7,
-        user: {
-          id: "user-1",
-          clerkId: "clerk-1",
-        },
-        project: {
-          id: "project-1",
-          name: "Test Project",
-        },
-        model: {
-          name: "Claude",
-          provider: "anthropic",
-          model: "claude-3-sonnet",
-          icon: "claude-icon",
-        },
-      };
-
-      fetchMock.mockResponseOnce(JSON.stringify(mockPromptResponse));
-
-      const result = await sdk.prompt({
-        projectId: "test-project",
-        variables: {
-          name: "John Doe",
-          platform: "Promptrun",
-        },
-      });
-
-      expect(result.processedPrompt).toBe(
-        "Hello John Doe, welcome to Promptrun!"
-      );
-      expect(result.prompt).toBe("Hello {{name}}, welcome to {{platform}}!");
-    });
-
-    test("should not add processedPrompt when no variables provided", async () => {
-      const mockPromptResponse: PromptrunPrompt = {
-        id: "test-id",
-        createdAt: "2023-01-01T00:00:00Z",
-        updatedAt: "2023-01-01T00:00:00Z",
-        prompt: "Hello {{name}}, welcome to {{platform}}!",
-        version: 1,
-        versionMessage: "Initial version",
-        tag: null,
-        temperature: 0.7,
-        user: {
-          id: "user-1",
-          clerkId: "clerk-1",
-        },
-        project: {
-          id: "project-1",
-          name: "Test Project",
-        },
-        model: {
-          name: "Claude",
-          provider: "anthropic",
-          model: "claude-3-sonnet",
-          icon: "claude-icon",
-        },
-      };
-
-      fetchMock.mockResponseOnce(JSON.stringify(mockPromptResponse));
-
-      const result = await sdk.prompt({
-        projectId: "test-project",
-      });
-
-      expect(result.processedPrompt).toBeUndefined();
-      expect(result.prompt).toBe("Hello {{name}}, welcome to {{platform}}!");
     });
   });
 
@@ -1134,6 +1057,203 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
       // Stop polling to clean up
       (result as any).stopPolling();
+    });
+  });
+
+  describe("Enhanced prompt functionality", () => {
+    const mockPromptResponse = {
+      id: "test-prompt-id",
+      prompt:
+        "Analyze the {{symbol}} token on {{chain}} blockchain. Address: {{address}}",
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      version: 2,
+      versionMessage: "Updated prompt",
+      tag: null,
+      temperature: 0.7,
+      user: { id: "user-1", clerkId: "clerk-1" },
+      project: { id: "project-1", name: "Test Project" },
+      model: {
+        name: "GPT-4",
+        provider: "openai",
+        model: "gpt-4",
+        icon: "openai-icon",
+      },
+    };
+
+    test("should work with nested object schema", async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...mockPromptResponse,
+          prompt:
+            "Analyze {{user.name}}'s {{token.symbol}} on {{token.chain}}. Address: {{token.address}}",
+        })
+      );
+
+      const nestedSchema = z.object({
+        user: z.object({
+          name: z.string(),
+          id: z.string(),
+        }),
+        token: z.object({
+          symbol: z.string(),
+          chain: z.enum(["ethereum", "base", "arbitrum"]),
+          address: z.string(),
+        }),
+      });
+
+      const inputs = {
+        user: {
+          name: "John Doe",
+          id: "user123",
+        },
+        token: {
+          symbol: "ETH",
+          chain: "ethereum",
+          address: "0xabc...",
+        },
+      };
+
+      const result = await sdk.prompt({
+        projectId: "test-project",
+        inputsSchema: nestedSchema,
+        inputs,
+      });
+
+      expect(result).toEqual({
+        systemPrompt: "Analyze John Doe's ETH on ethereum. Address: 0xabc...",
+        inputs: ["user.name", "token.symbol", "token.chain", "token.address"],
+        template:
+          "Analyze {{user.name}}'s {{token.symbol}} on {{token.chain}}. Address: {{token.address}}",
+        version: 2,
+        model: "gpt-4",
+      });
+    });
+
+    test("should return structured result with schema validation", async () => {
+      fetchMock.mockResponseOnce(JSON.stringify(mockPromptResponse));
+
+      const inputsSchema = z.object({
+        symbol: z.string(),
+        chain: z.enum(["ethereum", "base", "arbitrum"]),
+        address: z.string(),
+      });
+
+      const inputs = {
+        symbol: "ETH",
+        chain: "ethereum",
+        address: "0xabc...",
+      };
+
+      const result = (await sdk.prompt({
+        projectId: "test-project",
+        inputsSchema,
+        inputs,
+      })) as unknown as PromptrunPromptResult;
+
+      expect(result).toEqual({
+        systemPrompt:
+          "Analyze the ETH token on ethereum blockchain. Address: 0xabc...",
+        inputs: ["symbol", "chain", "address"],
+        template:
+          "Analyze the {{symbol}} token on {{chain}} blockchain. Address: {{address}}",
+        version: 2,
+        model: "gpt-4",
+      });
+    });
+
+    test("should throw error for invalid inputs with schema", async () => {
+      fetchMock.mockResponseOnce(JSON.stringify(mockPromptResponse));
+
+      const inputsSchema = z.object({
+        symbol: z.string(),
+        chain: z.enum(["ethereum", "base", "arbitrum"]),
+        address: z.string(),
+      });
+
+      const inputs = {
+        symbol: "ETH",
+        chain: "invalid-chain", // Invalid value
+        address: "0xabc...",
+      };
+
+      await expect(
+        sdk.prompt({
+          projectId: "test-project",
+          inputsSchema,
+          inputs,
+        })
+      ).rejects.toThrow(PromptrunConfigurationError);
+    });
+
+    test("should work without schema validation", async () => {
+      fetchMock.mockResponseOnce(JSON.stringify(mockPromptResponse));
+
+      const inputs = {
+        symbol: "ETH",
+        chain: "ethereum",
+        address: "0xabc...",
+      };
+
+      const result = (await sdk.prompt({
+        projectId: "test-project",
+        inputs,
+      })) as unknown as PromptrunPromptResult;
+
+      expect(result).toEqual({
+        systemPrompt:
+          "Analyze the ETH token on ethereum blockchain. Address: 0xabc...",
+        inputs: ["symbol", "chain", "address"],
+        template:
+          "Analyze the {{symbol}} token on {{chain}} blockchain. Address: {{address}}",
+        version: 2,
+        model: "gpt-4",
+      });
+    });
+
+    test("should show warning for missing variables", async () => {
+      fetchMock.mockResponseOnce(JSON.stringify(mockPromptResponse));
+      const consoleSpy = jest.spyOn(console, "warn").mockImplementation();
+
+      const inputs = {
+        symbol: "ETH",
+        // missing chain and address
+      };
+
+      const result = (await sdk.prompt({
+        projectId: "test-project",
+        inputs,
+      })) as unknown as PromptrunPromptResult;
+
+      expect(result.systemPrompt).toBe(
+        "Analyze the ETH token on {{chain}} blockchain. Address: {{address}}"
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "Warning: The following variables are defined in the prompt but not provided in inputs: chain, address. Continuing with unprocessed variables."
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    test("should work with prompt without variables when inputs are provided", async () => {
+      const promptWithoutVariables = {
+        ...mockPromptResponse,
+        prompt: "This is a simple prompt without variables.",
+      };
+      fetchMock.mockResponseOnce(JSON.stringify(promptWithoutVariables));
+
+      const result = (await sdk.prompt({
+        projectId: "test-project",
+        inputs: {}, // Provide empty inputs to trigger enhanced mode
+      })) as unknown as PromptrunPromptResult;
+
+      expect(result).toEqual({
+        systemPrompt: "This is a simple prompt without variables.",
+        inputs: [],
+        template: "This is a simple prompt without variables.",
+        version: 2,
+        model: "gpt-4",
+      });
     });
   });
 });
