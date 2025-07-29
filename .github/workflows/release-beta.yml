@@ -45,8 +45,13 @@ jobs:
 
           echo "Extracted version from tag: $VERSION"
 
-          # Update package.json to match the tag version
-          npm version $VERSION --no-git-tag-version
+          # Update package.json to match the tag version (only if different)
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          if [ "$CURRENT_VERSION" != "$VERSION" ]; then
+            npm version $VERSION --no-git-tag-version
+          else
+            echo "Version already matches: $VERSION"
+          fi
 
           # Temporarily disable changeset configuration for beta releases
           mv .changeset .changeset.backup || true
