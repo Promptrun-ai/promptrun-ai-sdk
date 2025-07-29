@@ -10,6 +10,20 @@ The official Promptrun AI SDK for Node.js provides dynamic prompt management and
 
 Transform your AI applications with centralized prompt management, real-time updates, version control, and performance optimization - all without code deployments.
 
+## Table of Contents
+
+- [Key Features](#key-features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Prompt Management](#prompt-management)
+- [LLM Integration](#llm-integration)
+- [Mastra Integration](#mastra-integration)
+- [Advanced Usage](#advanced-usage)
+- [API Reference](#api-reference)
+- [Quick Reference](#quick-reference)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Key Features
 
 - **Dynamic Prompt Management**: Fetch and manage prompt templates from your Promptrun dashboard with real-time updates and version control
