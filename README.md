@@ -6,20 +6,35 @@
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/Promptrun-ai/promptrun-ai-sdk?utm_source=oss&utm_medium=github&utm_campaign=Promptrun-ai%2Fpromptrun-ai-sdk&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/Promptrun-ai/promptrun-ai-sdk/main.yml?branch=main)](https://github.com/Promptrun-ai/promptrun-ai-sdk/actions)
 
-The official Promptrun AI SDK for Node.js provides a seamless bridge between your application and the Promptrun platform. It is designed for first-class integration with the **Vercel AI SDK**, enabling powerful, stream-first interactions with language models managed through your Promptrun dashboard.
+The official Promptrun AI SDK for Node.js provides dynamic prompt management and versioning for your AI applications. Manage your prompts through the Promptrun dashboard and integrate seamlessly with any LLM provider through the **Vercel AI SDK**.
 
-Unlock dynamic prompt management, versioning, performance caching, real-time updates, and robust error handling in your AI applications with just a few lines of code.
+Transform your AI applications with centralized prompt management, real-time updates, version control, and performance optimization - all without code deployments.
+
+## Table of Contents
+
+- [Key Features](#key-features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Prompt Management](#prompt-management)
+- [LLM Integration](#llm-integration)
+- [Mastra Integration](#mastra-integration)
+- [Advanced Usage](#advanced-usage)
+- [API Reference](#api-reference)
+- [Quick Reference](#quick-reference)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Key Features
 
-- **Seamless Vercel AI SDK Integration**: Use the Promptrun SDK directly with `generateText`, `streamText`, and other Vercel AI SDK helpers.
-- **Dynamic Prompt Management**: Fetch and poll your prompt templates directly from the Promptrun server, allowing you to update prompts in real-time without redeploying your application.
-- **Real-time Updates**: Event-driven architecture with polling and Server-Sent Events (SSE) support for instant prompt updates.
-- **Event-driven Architecture**: Listen for prompt changes with `onChange` callbacks and event listeners (`on`, `off`, `once`).
-- **Performance Caching**: Built-in support for caching prompts on the Promptrun backend to reduce latency and costs on subsequent identical calls.
-- **Robust, Typed Error Handling**: A clear set of custom error classes (`PromptrunAuthenticationError`, `PromptrunAPIError`, etc.) lets you build resilient applications that can gracefully handle API issues.
-- **Streaming First**: Full support for streaming responses, perfect for building interactive, real-time user experiences.
-- **Fully Typed**: Written in TypeScript to provide excellent autocompletion and type safety.
+- **Dynamic Prompt Management**: Fetch and manage prompt templates from your Promptrun dashboard with real-time updates and version control
+- **Real-time Updates**: Event-driven architecture with polling and Server-Sent Events (SSE) for instant prompt updates without redeployment
+- **Version Control & Tagging**: Support for prompt versioning, tagging, and rollback capabilities for different environments
+- **Prompt Variables**: Dynamic variable replacement with `{{variable_name}}` syntax for personalized prompts
+- **Seamless LLM Integration**: Use prompts directly with `generateText`, `streamText`, and other Vercel AI SDK helpers
+- **Performance Caching**: Built-in caching for prompts and completions to reduce latency and costs
+- **Robust Error Handling**: Comprehensive error classes for building resilient applications
+- **Streaming First**: Full support for streaming responses for interactive experiences
+- **Fully Typed**: Written in TypeScript for excellent autocompletion and type safety
 
 ## Installation
 
@@ -37,223 +52,64 @@ yarn add @promptrun-ai/sdk
 pnpm add @promptrun-ai/sdk
 ```
 
-## Getting Started
+## Quick Start
 
-Using the Promptrun SDK is simple. Instantiate the client and use the `.model()` method to create a language model compatible with the Vercel AI SDK.
-
-### Basic Usage with `generateText`
-
-This example shows how to generate a complete text response.
+Get started with dynamic prompt management in 3 simple steps:
 
 ```typescript
+import { PromptrunSDK } from "@promptrun-ai/sdk";
 import { generateText } from "ai";
-import { PromptrunSDK } from "@promptrun-ai/sdk";
 
-// 1. Initialize the Promptrun SDK with your API key
+// 1. Initialize the SDK
 const promptrun = new PromptrunSDK({
   apiKey: process.env.PROMPTRUN_API_KEY!,
 });
 
-// 2. Create a model instance
-const model = promptrun.model("openai/gpt-4o");
+// 2. Fetch your prompt from the dashboard
+const promptData = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+});
 
-async function main() {
-  // 3. Use the model with the Vercel AI SDK
-  const { text } = await generateText({
-    model,
-    prompt: "Tell me a short story about a robot who learns to paint.",
-  });
+// 3. Use with any LLM model
+const model = promptrun.model(promptData.model.model);
+const { text } = await generateText({
+  model,
+  messages: [
+    { role: "system", content: promptData.prompt },
+    { role: "user", content: "Hello!" }
+  ]
+});
 
-  console.log(text);
-}
-
-main();
 ```
 
-### Using Messages Array Format
+*Note: The `poll` parameter is optional and only necessary if you want automatic updates. For one-time prompt fetching, you can omit it or set `poll: 0`.
 
-For chat applications, you'll often want to use the messages array format with system and user messages:
+## Prompt Management
+
+The core of Promptrun is dynamic prompt management. Instead of hardcoding prompts in your application, manage them through your Promptrun dashboard and fetch them dynamically with real-time updates.
+
+### Fetching Prompts
+
+Fetch prompts from your Promptrun project with version control and automatic model configuration:
 
 ```typescript
-import { generateText } from "ai";
 import { PromptrunSDK } from "@promptrun-ai/sdk";
 
 const promptrun = new PromptrunSDK({
   apiKey: process.env.PROMPTRUN_API_KEY!,
 });
 
-const model = promptrun.model("openai/gpt-4o");
-
-async function main() {
-  const { text } = await generateText({
-    model,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a helpful AI assistant that specializes in creative writing.",
-      },
-      {
-        role: "user",
-        content: "Tell me a short story about a robot who learns to paint.",
-      },
-    ],
-  });
-
-  console.log(text);
-}
-
-main();
-```
-
-### Streaming with `streamText`
-
-For interactive applications, streaming is essential. The SDK fully supports this out of the box.
-
-```typescript
-import { streamText } from "ai";
-import { PromptrunSDK } from "@promptrun-ai/sdk";
-
-const promptrun = new PromptrunSDK({
-  apiKey: process.env.PROMPTRUN_API_KEY!,
+// Fetch a prompt template from your project (one-time fetch)
+const promptData = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 0, // Disable polling for one-time fetch
 });
 
-const model = promptrun.model("openai/gpt-4o");
-
-async function main() {
-  const { textStream } = await streamText({
-    model,
-    prompt: "Tell me a short story about a robot who learns to paint.",
-  });
-
-  // The stream is ready to be consumed
-  for await (const delta of textStream) {
-    process.stdout.write(delta);
-  }
-}
-
-main();
-```
-
-### Streaming with Messages Format and Dynamic Prompts
-
-You can also combine streaming with the messages format and dynamic prompts:
-
-```typescript
-import { streamText } from "ai";
-import { PromptrunSDK } from "@promptrun-ai/sdk";
-
-const promptrun = new PromptrunSDK({
-  apiKey: process.env.PROMPTRUN_API_KEY!,
-});
-
-async function main() {
-  // Fetch the latest prompt from your project
-  const { prompt } = await promptrun.prompt({
-    projectId: "YOUR_PROMPTRUN_PROJECT_ID",
-    poll: 1000, // Not mandatory
-  });
-
-  const model = promptrun.model("anthropic/claude-sonnet-4");
-
-  // Stream response using messages format
-  const { textStream } = await streamText({
-    model,
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: "who are you?" },
-    ],
-  });
-
-  console.log("AI Response (streaming):");
-  for await (const delta of textStream) {
-    process.stdout.write(delta);
-  }
-  console.log("\n"); // New line after streaming completes
-}
-
-main();
-```
-
-## Dynamic Prompt Management
-
-### Fetching Prompts from the Server
-
-Instead of hardcoding prompts, you can fetch them from your Promptrun project. This allows you to manage prompts through your dashboard and update them without code changes.
-
-```typescript
-import { generateText } from "ai";
-import { PromptrunSDK } from "@promptrun-ai/sdk";
-
-const promptrun = new PromptrunSDK({
-  apiKey: process.env.PROMPTRUN_API_KEY!,
-});
-
-async function main() {
-  // Fetch a prompt template from your project (one-time fetch)
-  const promptData = await promptrun.prompt({
-    projectId: "YOUR_PROMPTRUN_PROJECT_ID",
-    poll: 0, // Disable polling for one-time fetch
-  });
-
-  console.log(`Using prompt version: ${promptData.version}`);
-  console.log(`Prompt content: ${promptData.prompt}`);
-
-  // Create a model instance using the model specified in the prompt template
-  const model = promptrun.model(promptData.model.model);
-
-  // Use the fetched prompt content
-  const { text } = await generateText({
-    model,
-    prompt: promptData.prompt,
-  });
-
-  console.log("Generated Text:", text);
-}
-
-main();
-```
-
-### Using Fetched Prompts as System Messages
-
-A common pattern is to use the fetched prompt as a system message in a chat conversation:
-
-```typescript
-import { generateText } from "ai";
-import { PromptrunSDK } from "@promptrun-ai/sdk";
-
-const promptrun = new PromptrunSDK({
-  apiKey: process.env.PROMPTRUN_API_KEY!,
-});
-
-async function main() {
-  // Fetch prompt from your Promptrun project
-  const promptData = await promptrun.prompt({
-    projectId: "YOUR_PROMPTRUN_PROJECT_ID",
-    poll: 0,
-  });
-
-  // Create model instance
-  const model = promptrun.model(promptData.model.model);
-
-  // Use the fetched prompt as a system message
-  const { text } = await generateText({
-    model,
-    messages: [
-      { role: "system", content: promptData.prompt },
-      { role: "user", content: "who are you?" },
-    ],
-  });
-
-  console.log("AI Response:", text);
-}
-
-main();
 ```
 
 ### Version and Tag Support
 
-You can fetch specific versions or tagged versions of your prompts:
+Manage different versions of your prompts for different environments:
 
 ```typescript
 // Fetch a specific version
@@ -271,11 +127,50 @@ const productionPrompt = await promptrun.prompt({
 });
 ```
 
-## Real-time Prompt Updates
+### Prompt Variables
 
-### Event-Driven Polling
+Use dynamic variables in your prompts with `{{variable_name}}` syntax:
 
-The SDK provides powerful event-driven functionality for real-time prompt updates. When you enable polling, you get a `PromptrunPollingPrompt` that extends the basic prompt with event capabilities.
+```typescript
+// Your prompt template: "Hello {{name}}, welcome to {{platform}}!"
+
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  variables: {
+    name: "John Doe",
+    platform: "Promptrun",
+  },
+});
+
+```
+
+#### Variable Features
+
+- **Simple replacement**: Variables in `{{variable_name}}` format are replaced with corresponding values
+- **Missing variables**: If a variable is not provided, the original placeholder is preserved
+- **Type conversion**: All variable values are converted to strings
+- **Multiple occurrences**: The same variable can be used multiple times in a prompt
+
+```typescript
+const promptData = await promptrun.prompt({
+  projectId: "your-project-id",
+  variables: {
+    name: "John Doe",
+    // 'age' is not provided
+  },
+});
+
+// If prompt is: "Hello {{name}}, your age is {{age}}"
+// Result: "Hello John Doe, your age is {{age}}"
+```
+
+### Real-time Updates
+
+Enable automatic prompt updates without redeploying your application using polling or Server-Sent Events.
+
+#### Event-Driven Polling
+
+When you enable polling, you get a `PromptrunPollingPrompt` with event capabilities for real-time updates:
 
 ```typescript
 import { PromptrunSDK } from "@promptrun-ai/sdk";
@@ -284,167 +179,79 @@ const promptrun = new PromptrunSDK({
   apiKey: process.env.PROMPTRUN_API_KEY!,
 });
 
-async function main() {
-  // Enable polling (checks for updates every 30 seconds)
-  const pollingPrompt = await promptrun.prompt({
-    projectId: "YOUR_PROJECT_ID",
-    poll: 30000, // Poll every 30 seconds
-    onChange: (changeEvent) => {
-      console.log("Prompt updated!", {
-        newVersion: changeEvent.prompt.version,
-        changes: changeEvent.changes,
-        previousVersion: changeEvent.previousPrompt.version,
-      });
+// Enable polling (checks for updates every 30 seconds)
+const pollingPrompt = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 30000, // Poll every 30 seconds
+  onChange: (changeEvent) => {
+    // Handle prompt updates
+    const { newVersion, changes, previousVersion } = {
+      newVersion: changeEvent.prompt.version,
+      changes: changeEvent.changes,
+      previousVersion: changeEvent.previousPrompt.version,
+    };
 
-      // Handle specific types of changes
-      if (changeEvent.changes.content) {
-        console.log("Content changed:", {
-          from: changeEvent.changes.content.from,
-          to: changeEvent.changes.content.to,
-        });
-      }
+    // Handle specific types of changes
+    if (changeEvent.changes.content) {
+      // Content changed from old to new
+    }
+  },
+  onPollingError: (error) => {
+    // Handle polling errors
+  },
+});
 
-      if (changeEvent.changes.temperature) {
-        console.log("Temperature changed:", {
-          from: changeEvent.changes.temperature.from,
-          to: changeEvent.changes.temperature.to,
-        });
-      }
-    },
-    onPollingError: (error) => {
-      console.error("Polling error:", error.message);
-      console.error("Error type:", error.type);
-      console.error("Consecutive errors:", error.consecutiveErrors);
-    },
-  });
-
-  console.log("Initial prompt:", pollingPrompt.prompt);
-  console.log("Polling active:", pollingPrompt.isPolling);
-
-  // The prompt will automatically update when changes are detected
-  // Your onChange callback will be called with details about what changed
-
-  // Clean up when done
-  setTimeout(() => {
-    pollingPrompt.stopPolling();
-    console.log("Polling stopped");
-  }, 300000); // Stop after 5 minutes
-}
-
-main();
+// Clean up when done
+setTimeout(() => {
+  pollingPrompt.stopPolling();
+}, 300000); // Stop after 5 minutes
 ```
 
-### Event Listeners (on/off/once)
+#### Event Listeners
 
-For more fine-grained control, you can use event listeners instead of or in addition to callbacks:
-
-```typescript
-async function main() {
-  const pollingPrompt = await promptrun.prompt({
-    projectId: "YOUR_PROJECT_ID",
-    poll: 10000, // Poll every 10 seconds
-  });
-
-  // Add event listeners
-  pollingPrompt.on("change", (changeEvent) => {
-    console.log("Change detected via event listener:", changeEvent.changes);
-  });
-
-  pollingPrompt.on("error", (pollingError) => {
-    console.error("Polling error via event listener:", pollingError.message);
-  });
-
-  // One-time listeners (automatically removed after first event)
-  pollingPrompt.once("change", (changeEvent) => {
-    console.log("First change detected:", changeEvent.prompt.version);
-  });
-
-  // Remove specific listeners
-  const errorHandler = (error) => console.log("Error:", error.message);
-  pollingPrompt.on("error", errorHandler);
-  pollingPrompt.off("error", errorHandler); // Remove specific handler
-
-  // Remove all listeners for an event
-  pollingPrompt.off("change"); // Removes all change listeners
-
-  // Get current status
-  const status = pollingPrompt.getStatus();
-  console.log("Polling status:", {
-    isPolling: status.isPolling,
-    currentInterval: status.currentInterval,
-    consecutiveErrors: status.consecutiveErrors,
-    lastError: status.lastError,
-    lastSuccessfulFetch: status.lastSuccessfulFetch,
-  });
-}
-```
-
-### Server-Sent Events (SSE)
-
-For ultra-low latency updates, you can use Server-Sent Events instead of polling:
-
-```typescript
-async function main() {
-  // Use SSE for real-time updates (no polling interval needed)
-  const ssePrompt = await promptrun.prompt({
-    projectId: "YOUR_PROJECT_ID",
-    poll: "sse", // Enable Server-Sent Events
-    onChange: (changeEvent) => {
-      console.log("Real-time update via SSE:", changeEvent.changes);
-    },
-  });
-
-  console.log("SSE connection active:", ssePrompt.isPolling);
-
-  // SSE provides instant updates when prompts change on the server
-  // No need to wait for polling intervals
-}
-```
-
-### Polling Configuration Options
-
-The polling system includes intelligent backoff and error handling:
+Use event listeners for fine-grained control over prompt updates:
 
 ```typescript
 const pollingPrompt = await promptrun.prompt({
   projectId: "YOUR_PROJECT_ID",
-  poll: 5000, // Poll every 5 seconds (minimum allowed)
-  enforceMinimumInterval: true, // Enforce 5-second minimum (default: true)
+  poll: 10000, // Poll every 10 seconds
+});
 
-  // Advanced error handling
-  onPollingError: (error) => {
-    console.log("Error details:", {
-      type: error.type, // 'rate_limit', 'authentication', 'network', 'api', 'unknown'
-      message: error.message,
-      consecutiveErrors: error.consecutiveErrors,
-      backoffMultiplier: error.backoffMultiplier,
-      statusCode: error.statusCode,
-    });
+// Add event listeners
+pollingPrompt.on("change", (changeEvent) => {
+  // Handle change events
+});
 
-    // Handle different error types
-    switch (error.type) {
-      case "rate_limit":
-        console.log("Rate limited - polling will slow down automatically");
-        break;
-      case "authentication":
-        console.log("Authentication failed - check your API key");
-        break;
-      case "network":
-        console.log("Network error - will retry with backoff");
-        break;
-    }
+pollingPrompt.on("error", (pollingError) => {
+  // Handle polling errors
+});
+
+// One-time listeners (automatically removed after first event)
+pollingPrompt.once("change", (changeEvent) => {
+  // Handle first change
+});
+
+// Remove listeners
+pollingPrompt.off("change"); // Removes all change listeners
+```
+
+#### Server-Sent Events (SSE)
+
+For ultra-low latency updates, use Server-Sent Events instead of polling:
+
+```typescript
+// Use SSE for real-time updates (no polling interval needed)
+const ssePrompt = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: "sse", // Enable Server-Sent Events
+  onChange: (changeEvent) => {
+    // Handle real-time updates via SSE
   },
 });
 
-// Bypass minimum interval for testing (not recommended for production)
-const aggressivePolling = await promptrun.prompt({
-  projectId: "YOUR_PROJECT_ID",
-  poll: 1000, // 1 second (normally not allowed)
-  enforceMinimumInterval: false, // Allow aggressive polling
-});
 ```
 
-### Change Event Details
+#### Change Event Details
 
 The `PromptrunPromptChangeEvent` provides detailed information about what changed:
 
@@ -461,32 +268,87 @@ pollingPrompt.on("change", (changeEvent) => {
   }
 
   if (changes.content) {
-    console.log(
-      `Content changed from "${changes.content.from}" to "${changes.content.to}"`
-    );
+    console.log(`Content changed from "${changes.content.from}" to "${changes.content.to}"`);
   }
 
   if (changes.temperature) {
-    console.log(
-      `Temperature: ${changes.temperature.from} -> ${changes.temperature.to}`
-    );
-  }
-
-  if (changes.tag) {
-    console.log(`Tag: ${changes.tag.from} -> ${changes.tag.to}`);
-  }
-
-  if (changes.updatedAt) {
-    console.log(
-      `Updated: ${changes.updatedAt.from} -> ${changes.updatedAt.to}`
-    );
+    console.log(`Temperature: ${changes.temperature.from} -> ${changes.temperature.to}`);
   }
 });
 ```
 
-## Multi-turn Conversations
+## LLM Integration
 
-For building chatbots or conversational applications, you'll want to maintain conversation history:
+Use your managed prompts with any LLM provider through seamless Vercel AI SDK integration.
+
+### Basic Usage
+
+Generate text using prompts from your Promptrun dashboard:
+
+```typescript
+import { generateText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+// Fetch prompt and create model
+const promptData = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 0,
+});
+
+const model = promptrun.model(promptData.model.model);
+
+// Use the fetched prompt as a system message
+const { text } = await generateText({
+  model,
+  messages: [
+    { role: "system", content: promptData.prompt },
+    { role: "user", content: "who are you?" },
+  ],
+});
+
+```
+
+### Streaming Responses
+
+For interactive applications, streaming is essential:
+
+```typescript
+import { streamText } from "ai";
+import { PromptrunSDK } from "@promptrun-ai/sdk";
+
+const promptrun = new PromptrunSDK({
+  apiKey: process.env.PROMPTRUN_API_KEY!,
+});
+
+// Fetch the latest prompt from your project
+const { prompt } = await promptrun.prompt({
+  projectId: "YOUR_PROJECT_ID",
+  poll: 1000,
+});
+
+const model = promptrun.model("anthropic/claude-sonnet-4");
+
+// Stream response using messages format
+const { textStream } = await streamText({
+  model,
+  messages: [
+    { role: "system", content: prompt },
+    { role: "user", content: "who are you?" },
+  ],
+});
+
+for await (const delta of textStream) {
+  process.stdout.write(delta);
+}
+```
+
+### Multi-turn Conversations
+
+Build chatbots with conversation history and auto-updating prompts:
 
 ```typescript
 import { generateText } from "ai";
@@ -511,8 +373,6 @@ class ConversationBot {
     });
 
     this.model = promptrun.model(promptData.model.model);
-
-    // Set the system message
     this.messages = [{ role: "system", content: promptData.prompt }];
   }
 
@@ -533,7 +393,7 @@ class ConversationBot {
   }
 
   getConversationHistory() {
-    return [...this.messages]; // Return a copy
+    return [...this.messages];
   }
 
   clearHistory() {
@@ -543,28 +403,16 @@ class ConversationBot {
 }
 
 // Usage example
-async function chatExample() {
-  const bot = new ConversationBot();
-  await bot.initialize("YOUR_PROJECT_ID");
+const bot = new ConversationBot();
+await bot.initialize("YOUR_PROJECT_ID");
 
-  // First exchange
-  const response1 = await bot.sendMessage("Hello! What can you help me with?");
-  console.log("Bot:", response1);
-
-  // Second exchange (bot remembers previous context)
-  const response2 = await bot.sendMessage("Can you tell me more about that?");
-  console.log("Bot:", response2);
-
-  // View conversation history
-  console.log("Full conversation:", bot.getConversationHistory());
-}
-
-chatExample();
+const response1 = await bot.sendMessage("Hello! What can you help me with?");
+const response2 = await bot.sendMessage("Can you tell me more about that?");
 ```
 
-### Real-time Conversations with Auto-updating Prompts
+### Auto-updating Conversations
 
-Combine multi-turn conversations with auto-updating prompts for production chatbots:
+Combine conversations with real-time prompt updates:
 
 ```typescript
 class AutoUpdatingChatBot extends ConversationBot {
@@ -576,9 +424,7 @@ class AutoUpdatingChatBot extends ConversationBot {
       projectId,
       poll: 30000, // Update every 30 seconds
       onChange: (changeEvent) => {
-        console.log(
-          `System prompt updated to version ${changeEvent.prompt.version}`
-        );
+        console.log(`System prompt updated to version ${changeEvent.prompt.version}`);
         // Update the system message in conversation history
         this.messages[0] = {
           role: "system",
@@ -925,11 +771,9 @@ To improve performance and reduce costs, you can cache prompt completions on the
     });
     ```
 
-## Error Handling
+### Error Handling
 
-### Basic Error Handling
-
-The SDK throws custom error classes that all inherit from a base `PromptrunError`.
+The SDK provides comprehensive error handling with custom error classes:
 
 ```typescript
 import { generateText } from "ai";
@@ -945,35 +789,31 @@ import {
 const promptrun = new PromptrunSDK({ apiKey: "INVALID_API_KEY" });
 const model = promptrun.model("openai/gpt-4o");
 
-async function main() {
-  try {
-    await generateText({ model, prompt: "This will fail." });
-  } catch (error) {
-    if (error instanceof PromptrunAuthenticationError) {
-      console.error("Authentication Failed:", error.message);
-    } else if (error instanceof PromptrunAPIError) {
-      console.error("API Error:", error.message);
-    } else if (error instanceof PromptrunConnectionError) {
-      console.error("Connection Error:", error.message);
-    } else if (error instanceof PromptrunConfigurationError) {
-      console.error("Configuration Error:", error.message);
-      console.error("Parameter:", error.parameter);
-      console.error("Provided value:", error.providedValue);
-      console.error("Expected value:", error.expectedValue);
-    } else if (error instanceof PromptrunError) {
-      console.error("A Promptrun SDK Error Occurred:", error.message);
-    } else {
-      console.error("An unknown error occurred:", error);
-    }
+try {
+  await generateText({ model, prompt: "This will fail." });
+} catch (error) {
+  if (error instanceof PromptrunAuthenticationError) {
+    console.error("Authentication Failed:", error.message);
+  } else if (error instanceof PromptrunAPIError) {
+    console.error("API Error:", error.message);
+  } else if (error instanceof PromptrunConnectionError) {
+    console.error("Connection Error:", error.message);
+  } else if (error instanceof PromptrunConfigurationError) {
+    console.error("Configuration Error:", error.message);
+    console.error("Parameter:", error.parameter);
+    console.error("Provided value:", error.providedValue);
+    console.error("Expected value:", error.expectedValue);
+  } else if (error instanceof PromptrunError) {
+    console.error("A Promptrun SDK Error Occurred:", error.message);
+  } else {
+    console.error("An unknown error occurred:", error);
   }
 }
-
-main();
 ```
 
-### Polling Error Handling
+#### Polling Error Handling
 
-Polling errors are handled specially and include automatic retry with exponential backoff:
+Polling errors include automatic retry with exponential backoff:
 
 ```typescript
 const pollingPrompt = await promptrun.prompt({
@@ -987,17 +827,13 @@ const pollingPrompt = await promptrun.prompt({
       backoffMultiplier: pollingError.backoffMultiplier,
       projectId: pollingError.projectId,
       statusCode: pollingError.statusCode,
-      cause: pollingError.cause, // Original error that caused this
+      cause: pollingError.cause,
     });
-
-    // Polling automatically continues with backoff
-    // Rate limit errors get exponential backoff
-    // Other errors get modest backoff after 3 consecutive failures
   },
 });
 ```
 
-### Error Types
+#### Error Types
 
 | Error Class                    | When It's Thrown                                                                         |
 | ------------------------------ | ---------------------------------------------------------------------------------------- |
@@ -1055,6 +891,7 @@ interface PromptrunPromptOptions {
   poll?: number | "sse"; // Polling interval in ms, "sse", or 0 to disable
   version?: string; // Specific version to fetch
   tag?: string; // Specific tag to fetch
+  variables?: Record<string, any>; // Variables for prompt template replacement
   onChange?: (event: PromptrunPromptChangeEvent) => void; // Change callback
   onPollingError?: (error: PromptrunPollingError) => void; // Error callback
   enforceMinimumInterval?: boolean; // Enforce 5-second minimum interval
@@ -1067,12 +904,13 @@ interface PromptrunPromptOptions {
 
 | Pattern                | Use Case                        | Example                                                                               |
 | ---------------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
-| **Simple Prompt**      | Basic text generation           | `generateText({ model, prompt: "Hello" })`                                            |
-| **Messages Array**     | Chat applications               | `generateText({ model, messages: [{ role: "user", content: "Hello" }] })`             |
-| **System + User**      | AI assistants with instructions | `messages: [{ role: "system", content: prompt }, { role: "user", content: "Hello" }]` |
 | **Static Prompt**      | Fixed prompts                   | `await promptrun.prompt({ projectId, poll: 0 })`                                      |
 | **Polling Updates**    | Auto-updating prompts           | `await promptrun.prompt({ projectId, poll: 30000 })`                                  |
 | **SSE Updates**        | Real-time updates               | `await promptrun.prompt({ projectId, poll: "sse" })`                                  |
+| **Prompt Variables**   | Dynamic prompt content          | `await promptrun.prompt({ projectId, variables: { name: "John" } })`                  |
+| **Version Control**    | Specific prompt versions        | `await promptrun.prompt({ projectId, version: "v2" })`                                |
+| **Tagged Prompts**     | Environment-specific prompts    | `await promptrun.prompt({ projectId, tag: "production" })`                            |
+| **System + User**      | AI assistants with instructions | `messages: [{ role: "system", content: prompt }, { role: "user", content: "Hello" }]` |
 | **Multi-turn Chat**    | Conversation history            | Maintain `messages` array with conversation                                           |
 | **Mastra Integration** | AI Agents                       | `instructions: async () => (await promptrun.prompt(...)).prompt`                      |
 
@@ -1103,7 +941,6 @@ const pollingPrompt = await promptrun.prompt({
   projectId: "YOUR_PROJECT_ID",
   poll: 30000,
   onChange: (event) => {
-    // Use event.prompt.prompt as your new system message
     console.log("Updated prompt:", event.prompt.prompt);
   },
 });
@@ -1135,49 +972,6 @@ export const agent = new Agent({
   },
   model: promptrunSDK.model("openai/gpt-4o"),
 });
-```
-
-## Prompt Variables
-
-The SDK supports variable parsing in prompts. You can define variables in your prompt using the `{{variable_name}}` syntax and pass values when fetching the prompt.
-
-### Example
-
-```typescript
-// Your prompt template: "Hello {{name}}, welcome to {{platform}}!"
-
-const promptData = await promptrun.prompt({
-  projectId: "your-project-id",
-  variables: {
-    name: "John Doe",
-    platform: "Promptrun",
-  },
-});
-
-console.log(promptData.prompt); // "Hello {{name}}, welcome to {{platform}}!"
-console.log(promptData.processedPrompt); // "Hello John Doe, welcome to Promptrun!"
-```
-
-### Variable Parsing Features
-
-- **Simple replacement**: Variables in `{{variable_name}}` format are replaced with corresponding values
-- **Missing variables**: If a variable is not provided, the original placeholder is preserved
-- **Type conversion**: All variable values are converted to strings
-- **Multiple occurrences**: The same variable can be used multiple times in a prompt
-
-### Example with Missing Variables
-
-```typescript
-const promptData = await promptrun.prompt({
-  projectId: "your-project-id",
-  variables: {
-    name: "John Doe",
-    // 'age' is not provided
-  },
-});
-
-// If prompt is: "Hello {{name}}, your age is {{age}}"
-console.log(promptData.processedPrompt); // "Hello John Doe, your age is {{age}}"
 ```
 
 ## Contributing
