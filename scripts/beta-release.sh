@@ -64,7 +64,13 @@ npm test
 # Create changeset for beta
 echo -e "${BLUE}📝 Creating beta changeset...${NC}"
 mkdir -p .changeset
-echo "{\"releases\":[{\"name\":\"@promptrun-ai/sdk\",\"type\":\"patch\"}],\"summary\":\"Beta release ${BETA_VERSION}\"}" > .changeset/beta-${BETA_NUM}.md
+cat > .changeset/beta-${BETA_NUM}.md << EOF
+---
+"@promptrun-ai/sdk": patch
+---
+
+Beta release ${BETA_VERSION}
+EOF
 
 # Commit changes
 COMMIT_MESSAGE=${1:-"chore: prepare beta release ${BETA_VERSION}"}
