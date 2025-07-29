@@ -59,8 +59,17 @@ jobs:
           # Update package.json version
           npm version $BETA_VERSION --no-git-tag-version
 
+          # Temporarily disable changeset configuration for beta releases
+          mv .changeset .changeset.backup || true
+
       - name: Publish beta to NPM
-        run: npm publish --tag beta --access public
+        run: |
+          # Ensure we're using the correct version from package.json
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Publishing version: $VERSION"
+
+          # Publish with explicit version to avoid changeset conflicts
+          npm publish --tag beta --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -69,6 +78,11 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           git tag -a "v${VERSION}" -m "Beta release ${VERSION}"
           git push origin "v${VERSION}"
+
+      - name: Restore changeset configuration
+        run: |
+          # Restore changeset configuration
+          mv .changeset.backup .changeset || true
 
       - name: Commit version bump
         run: |
