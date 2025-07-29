@@ -164,15 +164,16 @@ describe("Promptrun SDK - Integration Tests", () => {
           new Response(JSON.stringify(mockPrompt), { status: 200 })
         );
 
-      const prompt = (await promptrun.prompt({
+      const prompt = await promptrun.prompt({
         projectId: "project-123",
-      })) as PromptrunPrompt;
+        poll: 0, // Disable polling to get basic path
+      });
 
       expect(prompt.prompt).toBe(
         "You are a helpful assistant specialized in creative writing."
       );
       expect(prompt.version).toBe(1);
-      expect(prompt.model.model).toBe("openai/gpt-4o");
+      expect(prompt.modelInfo?.model).toBe("openai/gpt-4o");
     });
 
     test("should handle polling for prompt updates", async () => {

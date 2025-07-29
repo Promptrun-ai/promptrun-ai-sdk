@@ -135,29 +135,8 @@ export class PromptrunSDK {
         onChange
       );
 
-      // Transform to unified format
-      return {
-        id: initialPrompt.id,
-        prompt: initialPrompt.prompt,
-        version: initialPrompt.version,
-        versionMessage: initialPrompt.versionMessage,
-        tag: initialPrompt.tag,
-        temperature: initialPrompt.temperature,
-        user: initialPrompt.user,
-        project: initialPrompt.project,
-        modelInfo: initialPrompt.model,
-        createdAt: initialPrompt.createdAt,
-        updatedAt: initialPrompt.updatedAt,
-        isPolling: ssePrompt.isPolling,
-        getCurrent: ssePrompt.getCurrent,
-        stopPolling: ssePrompt.stopPolling,
-        getStatus: ssePrompt.getStatus,
-        onError: ssePrompt.onError,
-        removeErrorHandler: ssePrompt.removeErrorHandler,
-        on: ssePrompt.on,
-        off: ssePrompt.off,
-        once: ssePrompt.once,
-      };
+      // Return the SSE prompt directly for backward compatibility
+      return ssePrompt as unknown as PromptrunPromptResult;
     } else if (typeof poll === "number" && poll > 0) {
       // Use polling with specified interval
       const pollingPrompt = new PromptrunPollingPromptImpl(
@@ -172,29 +151,8 @@ export class PromptrunSDK {
         onChange
       );
 
-      // Transform to unified format
-      return {
-        id: initialPrompt.id,
-        prompt: initialPrompt.prompt,
-        version: initialPrompt.version,
-        versionMessage: initialPrompt.versionMessage,
-        tag: initialPrompt.tag,
-        temperature: initialPrompt.temperature,
-        user: initialPrompt.user,
-        project: initialPrompt.project,
-        modelInfo: initialPrompt.model,
-        createdAt: initialPrompt.createdAt,
-        updatedAt: initialPrompt.updatedAt,
-        isPolling: pollingPrompt.isPolling,
-        getCurrent: pollingPrompt.getCurrent,
-        stopPolling: pollingPrompt.stopPolling,
-        getStatus: pollingPrompt.getStatus,
-        onError: pollingPrompt.onError,
-        removeErrorHandler: pollingPrompt.removeErrorHandler,
-        on: pollingPrompt.on,
-        off: pollingPrompt.off,
-        once: pollingPrompt.once,
-      };
+      // Return the polling prompt directly for backward compatibility
+      return pollingPrompt as unknown as PromptrunPromptResult;
     }
 
     // Return the original prompt object transformed to unified format
