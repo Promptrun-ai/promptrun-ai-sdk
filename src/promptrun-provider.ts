@@ -240,7 +240,7 @@ export class PromptrunSDK {
       queryParams.append("tag", tag);
     }
 
-    const baseURL = this.options.baseURL || "https://api.promptrun.ai";
+    const baseURL = this.options.baseURL || "https://api.promptrun.ai/v1";
     const url = `${baseURL}/prompt?${queryParams.toString()}`;
 
     try {
