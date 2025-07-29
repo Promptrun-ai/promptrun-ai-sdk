@@ -37,10 +37,16 @@ fi
 CURRENT_VERSION=$(node -p "require('./package.json').version")
 echo -e "${BLUE}📦 Current version: $CURRENT_VERSION${NC}"
 
-# Generate beta version
-TIMESTAMP=$(date +%s)
-COMMIT_HASH=$(git rev-parse --short HEAD)
-BETA_VERSION="${CURRENT_VERSION}-beta.${TIMESTAMP}.${COMMIT_HASH}"
+# Generate clean beta version
+if [[ $CURRENT_VERSION =~ -beta\.([0-9]+) ]]; then
+  BETA_NUM=$((BASH_REMATCH[1] + 1))
+else
+  BETA_NUM=1
+fi
+
+# Extract base version
+BASE_VERSION=$(echo $CURRENT_VERSION | sed 's/-beta\.[0-9]*//')
+BETA_VERSION="${BASE_VERSION}-beta.${BETA_NUM}"
 
 echo -e "${BLUE}🎯 Beta version: $BETA_VERSION${NC}"
 
@@ -58,7 +64,7 @@ npm test
 # Create changeset for beta
 echo -e "${BLUE}📝 Creating beta changeset...${NC}"
 mkdir -p .changeset
-echo "{\"releases\":[{\"name\":\"@promptrun-ai/sdk\",\"type\":\"patch\"}],\"summary\":\"Beta release ${BETA_VERSION}\"}" > .changeset/beta-${TIMESTAMP}.md
+echo "{\"releases\":[{\"name\":\"@promptrun-ai/sdk\",\"type\":\"patch\"}],\"summary\":\"Beta release ${BETA_VERSION}\"}" > .changeset/beta-${BETA_NUM}.md
 
 # Commit changes
 COMMIT_MESSAGE=${1:-"chore: prepare beta release ${BETA_VERSION}"}

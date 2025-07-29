@@ -38,16 +38,29 @@ jobs:
 
       - name: Create beta version
         run: |
-          # Generate a unique beta version based on timestamp and commit hash
-          TIMESTAMP=$(date +%s)
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          BETA_VERSION="1.0.1-beta.${TIMESTAMP}.${COMMIT_HASH}"
+          # Get current version and increment beta number
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+
+          # Extract base version (e.g., "1.0.1" from "1.0.1-beta.1")
+          BASE_VERSION=$(echo $CURRENT_VERSION | sed 's/-beta\.[0-9]*//')
+
+          # Extract beta number or start at 1
+          if [[ $CURRENT_VERSION =~ -beta\.([0-9]+) ]]; then
+            BETA_NUM=$((BASH_REMATCH[1] + 1))
+          else
+            BETA_NUM=1
+          fi
+
+          # Create clean beta version
+          BETA_VERSION="${BASE_VERSION}-beta.${BETA_NUM}"
+
+          echo "Creating beta version: $BETA_VERSION"
 
           # Update package.json version
           npm version $BETA_VERSION --no-git-tag-version
 
           # Create a changeset for the beta version
-          echo "{\"releases\":[{\"name\":\"@promptrun-ai/sdk\",\"type\":\"patch\"}],\"summary\":\"Beta release ${BETA_VERSION}\"}" > .changeset/beta-${TIMESTAMP}.md
+          echo "{\"releases\":[{\"name\":\"@promptrun-ai/sdk\",\"type\":\"patch\"}],\"summary\":\"Beta release ${BETA_VERSION}\"}" > .changeset/beta-${BETA_NUM}.md
 
       - name: Publish beta to NPM
         run: npm publish --tag beta --access public
