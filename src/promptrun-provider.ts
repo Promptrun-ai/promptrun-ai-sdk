@@ -241,7 +241,7 @@ export class PromptrunSDK {
     }
 
     const baseURL = this.options.baseURL || "https://api.promptrun.ai";
-    const url = `${baseURL}/v1/prompt?${queryParams.toString()}`;
+    const url = `${baseURL}/prompt?${queryParams.toString()}`;
 
     try {
       const response = await fetch(url, {
