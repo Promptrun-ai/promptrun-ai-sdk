@@ -54,7 +54,7 @@ const promptrun = new PromptrunSDK({
 // 2. Fetch your prompt from the dashboard
 const promptData = await promptrun.prompt({
   projectId: "YOUR_PROJECT_ID",
-  poll: 30000, // Auto-update every 30 seconds
+  poll: 30000, // Auto-update every 30 seconds*
 });
 
 // 3. Use with any LLM model
@@ -69,6 +69,8 @@ const { text } = await generateText({
 
 console.log(text);
 ```
+
+*Note: The `poll` parameter is optional and only necessary if you want automatic updates. For one-time prompt fetching, you can omit it or set `poll: 0`.
 
 ## Prompt Management
 
