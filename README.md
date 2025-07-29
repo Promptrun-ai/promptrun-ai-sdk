@@ -67,7 +67,6 @@ const { text } = await generateText({
   ]
 });
 
-console.log(text);
 ```
 
 *Note: The `poll` parameter is optional and only necessary if you want automatic updates. For one-time prompt fetching, you can omit it or set `poll: 0`.
@@ -93,9 +92,6 @@ const promptData = await promptrun.prompt({
   poll: 0, // Disable polling for one-time fetch
 });
 
-console.log(`Using prompt version: ${promptData.version}`);
-console.log(`Prompt content: ${promptData.prompt}`);
-console.log(`Configured model: ${promptData.model.model}`);
 ```
 
 ### Version and Tag Support
@@ -133,8 +129,6 @@ const promptData = await promptrun.prompt({
   },
 });
 
-console.log(promptData.prompt); // "Hello {{name}}, welcome to {{platform}}!"
-console.log(promptData.processedPrompt); // "Hello John Doe, welcome to Promptrun!"
 ```
 
 #### Variable Features
@@ -154,7 +148,7 @@ const promptData = await promptrun.prompt({
 });
 
 // If prompt is: "Hello {{name}}, your age is {{age}}"
-console.log(promptData.processedPrompt); // "Hello John Doe, your age is {{age}}"
+// Result: "Hello John Doe, your age is {{age}}"
 ```
 
 ### Real-time Updates
@@ -177,33 +171,26 @@ const pollingPrompt = await promptrun.prompt({
   projectId: "YOUR_PROJECT_ID",
   poll: 30000, // Poll every 30 seconds
   onChange: (changeEvent) => {
-    console.log("Prompt updated!", {
+    // Handle prompt updates
+    const { newVersion, changes, previousVersion } = {
       newVersion: changeEvent.prompt.version,
       changes: changeEvent.changes,
       previousVersion: changeEvent.previousPrompt.version,
-    });
+    };
 
     // Handle specific types of changes
     if (changeEvent.changes.content) {
-      console.log("Content changed:", {
-        from: changeEvent.changes.content.from,
-        to: changeEvent.changes.content.to,
-      });
+      // Content changed from old to new
     }
   },
   onPollingError: (error) => {
-    console.error("Polling error:", error.message);
-    console.error("Error type:", error.type);
+    // Handle polling errors
   },
 });
-
-console.log("Initial prompt:", pollingPrompt.prompt);
-console.log("Polling active:", pollingPrompt.isPolling);
 
 // Clean up when done
 setTimeout(() => {
   pollingPrompt.stopPolling();
-  console.log("Polling stopped");
 }, 300000); // Stop after 5 minutes
 ```
 
@@ -219,16 +206,16 @@ const pollingPrompt = await promptrun.prompt({
 
 // Add event listeners
 pollingPrompt.on("change", (changeEvent) => {
-  console.log("Change detected:", changeEvent.changes);
+  // Handle change events
 });
 
 pollingPrompt.on("error", (pollingError) => {
-  console.error("Polling error:", pollingError.message);
+  // Handle polling errors
 });
 
 // One-time listeners (automatically removed after first event)
 pollingPrompt.once("change", (changeEvent) => {
-  console.log("First change detected:", changeEvent.prompt.version);
+  // Handle first change
 });
 
 // Remove listeners
@@ -245,11 +232,10 @@ const ssePrompt = await promptrun.prompt({
   projectId: "YOUR_PROJECT_ID",
   poll: "sse", // Enable Server-Sent Events
   onChange: (changeEvent) => {
-    console.log("Real-time update via SSE:", changeEvent.changes);
+    // Handle real-time updates via SSE
   },
 });
 
-console.log("SSE connection active:", ssePrompt.isPolling);
 ```
 
 #### Change Event Details
@@ -311,7 +297,6 @@ const { text } = await generateText({
   ],
 });
 
-console.log("AI Response:", text);
 ```
 
 ### Streaming Responses
@@ -343,7 +328,6 @@ const { textStream } = await streamText({
   ],
 });
 
-console.log("AI Response (streaming):");
 for await (const delta of textStream) {
   process.stdout.write(delta);
 }
@@ -410,10 +394,7 @@ const bot = new ConversationBot();
 await bot.initialize("YOUR_PROJECT_ID");
 
 const response1 = await bot.sendMessage("Hello! What can you help me with?");
-console.log("Bot:", response1);
-
 const response2 = await bot.sendMessage("Can you tell me more about that?");
-console.log("Bot:", response2);
 ```
 
 ### Auto-updating Conversations
