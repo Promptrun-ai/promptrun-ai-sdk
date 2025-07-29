@@ -63,13 +63,7 @@ jobs:
           mv .changeset .changeset.backup || true
 
       - name: Publish beta to NPM
-        run: |
-          # Ensure we're using the correct version from package.json
-          VERSION=$(node -p "require('./package.json').version")
-          echo "Publishing version: $VERSION"
-
-          # Publish with explicit version to avoid changeset conflicts
-          npm publish --tag beta --access public
+        run: ./scripts/publish-beta.sh
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
