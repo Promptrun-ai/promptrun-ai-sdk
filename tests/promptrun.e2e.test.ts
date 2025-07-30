@@ -30,6 +30,8 @@ describe("PromptrunSDK - E2E Tests", () => {
 
   beforeEach(() => {
     jest.restoreAllMocks();
+    // Clear environment variable to ensure tests use constructor baseURL
+    delete process.env.PROMPTRUN_BASE_URL;
     promptrun = new PromptrunSDK({
       apiKey: "test-api-key",
       baseURL: "https://api.example.com/v1",

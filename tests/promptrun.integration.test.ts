@@ -33,6 +33,8 @@ describe("Promptrun SDK - Integration Tests", () => {
 
   beforeEach(() => {
     jest.restoreAllMocks();
+    // Clear environment variable to ensure tests use constructor baseURL
+    delete process.env.PROMPTRUN_BASE_URL;
     // Clear the array for tracking instances
     promptrunInstances = [];
   });
