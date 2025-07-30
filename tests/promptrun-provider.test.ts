@@ -12,7 +12,6 @@ import {
 
 describe("Unit Test: PromptrunSDK Provider", () => {
   let sdk: PromptrunSDK;
-  const originalEnv = process.env;
 
   beforeAll(() => {
     fetchMock.enableMocks();
@@ -20,8 +19,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
   beforeEach(() => {
     fetchMock.resetMocks();
-    // Set environment variable for tests that need it
-    process.env.PROMPTRUN_BASE_URL = "https://api.example.com/v1";
+    // Don't set environment variable globally - let each test control its own environment
   });
 
   afterEach(() => {
@@ -29,20 +27,36 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     if (sdk) {
       sdk.stopAllPolling();
     }
-    // Restore original environment
-    process.env = originalEnv;
+    // Clean up environment variable specifically
+    delete process.env.PROMPTRUN_BASE_URL;
     // Reset sdk to undefined
     sdk = undefined as any;
   });
 
   describe("Basic initialization with environment variable set", () => {
+    beforeEach(() => {
+      // Set environment variable for these tests
+      process.env.PROMPTRUN_BASE_URL = "https://api.example.com/v1";
+    });
+
+    afterEach(() => {
+      // Clean up environment variable
+      delete process.env.PROMPTRUN_BASE_URL;
+    });
+
     test("should initialize with an API key string", () => {
-      const sdk = new PromptrunSDK("test-api-key");
+      const sdk = new PromptrunSDK({
+        apiKey: "test-api-key",
+        baseURL: "https://api.example.com/v1",
+      });
       expect(sdk).toBeDefined();
     });
 
     it("should initialize correctly with an API key string", () => {
-      const sdk = new PromptrunSDK("my-api-key");
+      const sdk = new PromptrunSDK({
+        apiKey: "my-api-key",
+        baseURL: "https://api.example.com/v1",
+      });
       expect(sdk).toBeInstanceOf(PromptrunSDK);
     });
 
@@ -64,19 +78,14 @@ describe("Unit Test: PromptrunSDK Provider", () => {
   });
 
   describe("Constructor and baseURL validation", () => {
-    // This test suite runs without the environment variable set
-    const originalEnv = process.env.PROMPTRUN_BASE_URL;
-
     beforeEach(() => {
       // Clear environment variable for validation tests
       delete process.env.PROMPTRUN_BASE_URL;
     });
 
     afterEach(() => {
-      // Restore environment variable
-      if (originalEnv) {
-        process.env.PROMPTRUN_BASE_URL = originalEnv;
-      }
+      // Clean up environment variable
+      delete process.env.PROMPTRUN_BASE_URL;
     });
 
     test("should throw error when initializing with API key string without baseURL", () => {
@@ -335,7 +344,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should re-throw PromptrunAPIError from catch block", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       const apiError = new PromptrunAPIError("API Error from catch");
 
       // Use fetchMock with a promise rejection
@@ -347,7 +359,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should re-throw PromptrunAuthenticationError from catch block", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       const authError = new PromptrunAuthenticationError(
         "Auth Error from catch"
       );
@@ -364,7 +379,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       // Reset all mocks
       fetchMock.resetMocks();
 
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       const specificError = new PromptrunAPIError("Isolated API Error");
 
       fetchMock.mockRejectedValueOnce(specificError);
@@ -378,7 +396,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       // Reset all mocks
       fetchMock.resetMocks();
 
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       const specificError = new PromptrunAuthenticationError(
         "Isolated Auth Error"
       );
@@ -391,7 +412,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should throw PromptrunAPIError on failed fetch", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       fetchMock.mockResponseOnce("Not Found", { status: 404 });
 
       await expect(sdk.prompt({ projectId: "test-project" })).rejects.toThrow(
@@ -400,7 +424,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should throw PromptrunConnectionError on network error", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       fetchMock.mockReject(new Error("Network down"));
 
       await expect(sdk.prompt({ projectId: "test-project" })).rejects.toThrow(
@@ -410,13 +437,19 @@ describe("Unit Test: PromptrunSDK Provider", () => {
   });
 
   it("model() method should return an instance of PromptrunLanguageModel", () => {
-    const sdk = new PromptrunSDK({ apiKey: "test-key" });
+    const sdk = new PromptrunSDK({
+      apiKey: "test-key",
+      baseURL: "https://api.example.com/v1",
+    });
     const model = sdk.model("test-model-id");
     expect(model).toBeInstanceOf(PromptrunLanguageModel);
   });
 
   it("prompt() method should fetch a prompt once without polling", async () => {
-    const sdk = new PromptrunSDK({ apiKey: "test-key" });
+    const sdk = new PromptrunSDK({
+      apiKey: "test-key",
+      baseURL: "https://api.example.com/v1",
+    });
     const mockPrompt: PromptrunPrompt = {
       id: "p-1",
       prompt: "You are a test assistant.",
@@ -451,7 +484,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
   });
 
   it("prompt() method should start background polling when poll interval is provided", async () => {
-    const sdk = new PromptrunSDK({ apiKey: "test-key" });
+    const sdk = new PromptrunSDK({
+      apiKey: "test-key",
+      baseURL: "https://api.example.com/v1",
+    });
     const mockPrompt: PromptrunPrompt = {
       id: "p-1",
       prompt: "You are a test assistant.",
@@ -507,7 +543,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     };
 
     test("should construct correct URL with projectId only", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       fetchMock.mockResponse(JSON.stringify(mockPrompt));
 
       await sdk.prompt({ projectId: "proj-123" });
@@ -519,7 +558,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should construct correct URL with projectId and version", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       fetchMock.mockResponse(JSON.stringify(mockPrompt));
 
       await sdk.prompt({
@@ -534,7 +576,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should construct correct URL with projectId and tag", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       fetchMock.mockResponse(JSON.stringify(mockPrompt));
 
       await sdk.prompt({
@@ -549,7 +594,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should construct correct URL with all parameters", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       fetchMock.mockResponse(JSON.stringify(mockPrompt));
 
       await sdk.prompt({
@@ -565,7 +613,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should return prompt with correct version information", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       const versionedPrompt = { ...mockPrompt, version: 2, tag: "test" };
       fetchMock.mockResponse(JSON.stringify(versionedPrompt));
 
@@ -580,7 +631,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should handle polling with version and tag parameters", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       fetchMock.mockResponse(JSON.stringify(mockPrompt));
 
       const result = await sdk.prompt({
@@ -600,6 +654,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     test("should handle query parameters correctly", async () => {
       const sdk = new PromptrunSDK({
         apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
       });
       fetchMock.mockResponse(JSON.stringify(mockPrompt));
 
@@ -618,7 +673,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
   describe("Polling functionality - demonstrates the issue", () => {
     test("NEW: should return a polling prompt that provides access to updated data", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const initialPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -683,7 +741,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should return regular prompt when polling is disabled", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const mockPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -726,7 +787,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       const consoleSpy = jest
         .spyOn(console, "warn")
         .mockImplementation(() => {});
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const initialPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -770,7 +834,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       const consoleSpy = jest
         .spyOn(console, "warn")
         .mockImplementation(() => {});
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const initialPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -825,7 +892,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
         errors.push(error);
       });
 
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const initialPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -900,7 +970,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       const errors: any[] = [];
       const errorHandler = (error: any) => errors.push(error);
 
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const initialPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -944,7 +1017,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should throw PromptrunConfigurationError for aggressive polling intervals", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const initialPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -995,7 +1071,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should default to 6000ms polling when poll parameter is not specified", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const initialPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -1059,7 +1138,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should allow aggressive polling when enforceMinimumInterval is false", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const initialPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -1100,7 +1182,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
   describe("Event-Driven Polling Features", () => {
     test("should support onChange callback parameter", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       const onChangeSpy = jest.fn();
 
       const mockPrompt: PromptrunPrompt = {
@@ -1140,7 +1225,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should support event listeners with on() method", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const mockPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -1190,7 +1278,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should return regular prompt when poll is 0", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const mockPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -1227,7 +1318,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should support SSE polling with poll: 'sse'", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const mockPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -1277,7 +1371,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should validate polling configuration options", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
 
       const mockPrompt: PromptrunPrompt = {
         id: "p-1",
@@ -1328,7 +1425,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
   describe("Enhanced prompt functionality", () => {
     beforeEach(() => {
-      sdk = new PromptrunSDK("test-api-key");
+      sdk = new PromptrunSDK({
+        apiKey: "test-api-key",
+        baseURL: "https://api.example.com/v1",
+      });
     });
 
     const mockPromptResponse = {
@@ -1535,7 +1635,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
   describe("Inputs extraction functionality", () => {
     beforeEach(() => {
-      sdk = new PromptrunSDK("test-api-key");
+      sdk = new PromptrunSDK({
+        apiKey: "test-api-key",
+        baseURL: "https://api.example.com/v1",
+      });
     });
 
     const mockPromptResponse = {
