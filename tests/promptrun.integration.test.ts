@@ -47,7 +47,16 @@ describe("Promptrun SDK - Integration Tests", () => {
 
   // Helper function to track SDK instances for cleanup
   const createTrackedSDK = (options: string | any): PromptrunSDK => {
-    const instance = new PromptrunSDK(options);
+    // Ensure baseURL is provided for all SDK instances
+    const sdkOptions =
+      typeof options === "string"
+        ? { apiKey: options, baseURL: "https://api.example.com/v1" }
+        : {
+            ...options,
+            baseURL: options.baseURL || "https://api.example.com/v1",
+          };
+
+    const instance = new PromptrunSDK(sdkOptions);
     promptrunInstances.push(instance);
     return instance;
   };
@@ -98,7 +107,7 @@ describe("Promptrun SDK - Integration Tests", () => {
       expect(text).toContain("robot");
       expect(text).toContain("Pixel");
       expect(fetchSpy).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/v1/chat/completions",
+        "https://api.example.com/v1/chat/completions",
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({
@@ -127,7 +136,7 @@ describe("Promptrun SDK - Integration Tests", () => {
       });
 
       expect(global.fetch).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/v1/chat/completions",
+        "https://api.example.com/v1/chat/completions",
         expect.any(Object)
       );
     });
@@ -536,7 +545,7 @@ describe("Promptrun SDK - Integration Tests", () => {
 
       // Verify the request was made with correct OpenRouter format
       expect(fetchSpy).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/v1/chat/completions",
+        "https://api.example.com/v1/chat/completions",
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({

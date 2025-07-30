@@ -30,7 +30,10 @@ describe("PromptrunSDK - E2E Tests", () => {
 
   beforeEach(() => {
     jest.restoreAllMocks();
-    promptrun = new PromptrunSDK({ apiKey: "test-api-key" });
+    promptrun = new PromptrunSDK({
+      apiKey: "test-api-key",
+      baseURL: "https://api.example.com/v1",
+    });
     promptrunInstances = [promptrun];
   });
 
@@ -43,7 +46,10 @@ describe("PromptrunSDK - E2E Tests", () => {
   });
 
   test('provider getter should return "promptrun"', () => {
-    const testPromptrun = new PromptrunSDK({ apiKey: "test-api-key" });
+    const testPromptrun = new PromptrunSDK({
+      apiKey: "test-api-key",
+      baseURL: "https://api.example.com/v1",
+    });
     promptrunInstances.push(testPromptrun);
     const model = testPromptrun.model("test-model");
     expect(model.provider).toBe("promptrun");
@@ -64,7 +70,7 @@ describe("PromptrunSDK - E2E Tests", () => {
 
     expect(result.text).toBe("Hello world!");
     expect(fetchSpy).toHaveBeenCalledWith(
-      "https://api.promptrun.ai/v1/chat/completions",
+      "https://api.example.com/v1/chat/completions",
       expect.anything()
     );
   });

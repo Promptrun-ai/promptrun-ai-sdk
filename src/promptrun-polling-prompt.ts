@@ -15,29 +15,122 @@ import {
 
 /**
  * Implementation of a polling prompt that keeps the prompt data up-to-date
- * by periodically fetching from the server.
+ * by periodically fetching from the Promptrun server.
+ *
+ * This class provides automatic polling functionality with intelligent backoff
+ * strategies, error handling, and event emission for prompt changes. It implements
+ * the `PromptrunPollingPrompt` interface and can be used to maintain real-time
+ * synchronization with prompt updates on the server.
+ *
+ * Features:
+ * - Automatic polling at specified intervals
+ * - Intelligent backoff on errors (exponential backoff for rate limits)
+ * - Event emission for prompt changes and errors
+ * - Minimum interval enforcement to prevent rate limiting
+ * - Comprehensive error handling and recovery
+ *
+ * @implements {PromptrunPollingPrompt}
+ * @since 1.0.0
+ *
+ * @example
+ * ```typescript
+ * const prompt = await promptrun.prompt({
+ *   projectId: "your-project-id",
+ *   poll: 5000, // Poll every 5 seconds
+ *   onChange: (event) => {
+ *     console.log("Prompt updated:", event.changes);
+ *   },
+ *   onPollingError: (error) => {
+ *     console.error("Polling error:", error.message);
+ *   }
+ * });
+ *
+ * // Access current prompt data
+ * console.log(prompt.prompt);
+ * console.log(prompt.version);
+ *
+ * // Control polling
+ * prompt.stopPolling();
+ *
+ * // Listen for events
+ * prompt.on("change", (event) => {
+ *   console.log("Prompt changed:", event.changes);
+ * });
+ *
+ * prompt.on("error", (error) => {
+ *   console.error("Polling error:", error);
+ * });
+ * ```
  */
 export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
+  /** @private Current prompt data */
   private currentPrompt: PromptrunPrompt;
+
+  /** @private Active polling interval timer */
   private pollingInterval: NodeJS.Timeout | null = null;
+
+  /** @private SDK configuration options */
   private readonly sdkOptions: PromptrunSDKOptions;
+
+  /** @private Project ID being polled */
   private readonly projectId: string;
+
+  /** @private Optional version parameter */
   private readonly versionParam?: string;
+
+  /** @private Optional tag parameter */
   private readonly tagParam?: string;
+
+  /** @private Polling interval in milliseconds */
   private readonly pollIntervalMs: number;
+
+  /** @private Current backoff multiplier for error handling */
   private backoffMultiplier: number = 1;
+
+  /** @private Number of consecutive errors */
   private consecutiveErrors: number = 0;
-  private readonly maxBackoffMs: number = 300000; // 5 minutes max backoff
-  private readonly minPollIntervalMs: number = 5000; // Minimum 5 seconds to prevent rate limits
+
+  /** @private Maximum backoff time (5 minutes) */
+  private readonly maxBackoffMs: number = 300000;
+
+  /** @private Minimum polling interval (5 seconds) */
+  private readonly minPollIntervalMs: number = 5000;
+
+  /** @private Error handler callback */
   private errorHandler?: (error: PromptrunPollingError) => void;
+
+  /** @private Last error that occurred */
   private lastError?: PromptrunPollingError;
+
+  /** @private Timestamp of last successful fetch */
   private lastSuccessfulFetch?: Date;
+
+  /** @private Timestamp of last error */
   private lastErrorTime?: Date;
+
+  /** @private Event emitter for change and error events */
   private readonly eventEmitter = new PollingEventEmitter<EventMap>();
+
+  /** @private Change callback function */
   private readonly onChangeCallback?: (
     event: PromptrunPromptChangeEvent
   ) => void;
 
+  /**
+   * Creates a new PromptrunPollingPromptImpl instance.
+   *
+   * @param {PromptrunPrompt} initialPrompt - The initial prompt data
+   * @param {PromptrunSDKOptions} sdkOptions - SDK configuration options
+   * @param {string} projectId - The project ID to poll
+   * @param {number} pollIntervalMs - Polling interval in milliseconds
+   * @param {string} [version] - Optional version to poll
+   * @param {string} [tag] - Optional tag to poll
+   * @param {(error: PromptrunPollingError) => void} [onPollingError] - Error handler callback
+   * @param {boolean} [enforceMinimumInterval=true] - Whether to enforce minimum polling interval
+   * @param {(event: PromptrunPromptChangeEvent) => void} [onChange] - Change event callback
+   *
+   * @throws {PromptrunConfigurationError} When polling interval is too aggressive and enforceMinimumInterval is true
+   */
   constructor(
     initialPrompt: PromptrunPrompt,
     sdkOptions: PromptrunSDKOptions,
@@ -139,11 +232,38 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     return this.currentPrompt.model;
   }
 
-  // Implement PromptrunPollingPrompt interface
+  /**
+   * Gets the current prompt data.
+   *
+   * Returns a copy of the current prompt data. This method is useful for
+   * getting the latest prompt data without directly accessing the properties.
+   *
+   * @returns {PromptrunPrompt} A copy of the current prompt data
+   *
+   * @example
+   * ```typescript
+   * const currentPrompt = prompt.getCurrent();
+   * console.log(currentPrompt.prompt);
+   * console.log(currentPrompt.version);
+   * ```
+   */
   getCurrent(): PromptrunPrompt {
     return { ...this.currentPrompt };
   }
 
+  /**
+   * Stops the polling for this prompt.
+   *
+   * This method clears the active polling interval and stops any further
+   * automatic updates. The prompt will retain its last fetched data but
+   * will no longer receive updates from the server.
+   *
+   * @example
+   * ```typescript
+   * prompt.stopPolling();
+   * console.log(prompt.isPolling); // false
+   * ```
+   */
   stopPolling(): void {
     if (this.pollingInterval) {
       clearTimeout(this.pollingInterval);
@@ -151,10 +271,33 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Whether polling is currently active.
+   *
+   * @returns {boolean} True if polling is active, false otherwise
+   */
   get isPolling(): boolean {
     return this.pollingInterval !== null;
   }
 
+  /**
+   * Gets the current polling status including error information.
+   *
+   * This method returns comprehensive status information about the polling
+   * process, including whether it's active, current interval, error counts,
+   * and timing information.
+   *
+   * @returns {PromptrunPollingStatus} Current polling status
+   *
+   * @example
+   * ```typescript
+   * const status = prompt.getStatus();
+   * console.log("Is polling:", status.isPolling);
+   * console.log("Current interval:", status.currentInterval);
+   * console.log("Consecutive errors:", status.consecutiveErrors);
+   * console.log("Backoff multiplier:", status.backoffMultiplier);
+   * ```
+   */
   getStatus(): PromptrunPollingStatus {
     return {
       isPolling: this.isPolling,
@@ -167,19 +310,54 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     };
   }
 
+  /**
+   * Sets an error handler for polling errors.
+   *
+   * @param {(error: PromptrunPollingError) => void} handler - Function to handle polling errors
+   *
+   * @example
+   * ```typescript
+   * prompt.onError((error) => {
+   *   console.error("Polling error:", error.message);
+   *   console.error("Error type:", error.type);
+   *   console.error("Consecutive errors:", error.consecutiveErrors);
+   * });
+   * ```
+   */
   onError(handler: (error: PromptrunPollingError) => void): void {
     this.errorHandler = handler;
   }
 
+  /**
+   * Removes the error handler.
+   *
+   * @example
+   * ```typescript
+   * prompt.removeErrorHandler();
+   * // Errors will now be logged to console by default
+   * ```
+   */
   removeErrorHandler(): void {
     this.errorHandler = undefined;
   }
 
   // Event emitter methods - match interface overloads exactly
+  /**
+   * Adds a listener for prompt change events.
+   *
+   * @param {"change"} event - The event type to listen for
+   * @param {(event: PromptrunPromptChangeEvent) => void} handler - Function to handle the event
+   */
   on(
     event: "change",
     handler: (event: PromptrunPromptChangeEvent) => void
   ): void;
+  /**
+   * Adds a listener for polling error events.
+   *
+   * @param {"error"} event - The event type to listen for
+   * @param {(error: PromptrunPollingError) => void} handler - Function to handle the event
+   */
   on(event: "error", handler: (error: PromptrunPollingError) => void): void;
   on(
     event: "change" | "error",
@@ -200,10 +378,22 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Removes a listener for prompt change events.
+   *
+   * @param {"change"} event - The event type to remove listener for
+   * @param {(event: PromptrunPromptChangeEvent) => void} [handler] - The specific handler to remove (optional)
+   */
   off(
     event: "change",
     handler?: (event: PromptrunPromptChangeEvent) => void
   ): void;
+  /**
+   * Removes a listener for polling error events.
+   *
+   * @param {"error"} event - The event type to remove listener for
+   * @param {(error: PromptrunPollingError) => void} [handler] - The specific handler to remove (optional)
+   */
   off(event: "error", handler?: (error: PromptrunPollingError) => void): void;
   off(
     event: "change" | "error",
@@ -224,10 +414,22 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Adds a one-time listener for prompt change events.
+   *
+   * @param {"change"} event - The event type to listen for
+   * @param {(event: PromptrunPromptChangeEvent) => void} handler - Function to handle the event (called once)
+   */
   once(
     event: "change",
     handler: (event: PromptrunPromptChangeEvent) => void
   ): void;
+  /**
+   * Adds a one-time listener for polling error events.
+   *
+   * @param {"error"} event - The event type to listen for
+   * @param {(error: PromptrunPollingError) => void} handler - Function to handle the event (called once)
+   */
   once(event: "error", handler: (error: PromptrunPollingError) => void): void;
   once(
     event: "change" | "error",
@@ -248,10 +450,20 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Starts the polling process.
+   *
+   * @private
+   */
   private startPolling(): void {
     this.scheduleNextPoll();
   }
 
+  /**
+   * Schedules the next poll with appropriate backoff.
+   *
+   * @private
+   */
   private scheduleNextPoll(): void {
     if (this.pollingInterval) {
       clearTimeout(this.pollingInterval);
@@ -307,7 +519,12 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
   }
 
   /**
-   * Detects if there are meaningful changes between two prompts
+   * Detects if there are meaningful changes between two prompts.
+   *
+   * @private
+   * @param {PromptrunPrompt} current - The current prompt data
+   * @param {PromptrunPrompt} updated - The updated prompt data
+   * @returns {boolean} True if meaningful changes are detected
    */
   private detectChanges(
     current: PromptrunPrompt,
@@ -323,7 +540,12 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
   }
 
   /**
-   * Creates a change event object with details about what changed
+   * Creates a change event object with details about what changed.
+   *
+   * @private
+   * @param {PromptrunPrompt} previous - The previous prompt data
+   * @param {PromptrunPrompt} current - The current prompt data
+   * @returns {PromptrunPromptChangeEvent} Change event with details about what changed
    */
   private createChangeEvent(
     previous: PromptrunPrompt,
@@ -361,6 +583,12 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     };
   }
 
+  /**
+   * Handles polling errors with appropriate backoff strategies.
+   *
+   * @private
+   * @param {unknown} error - The error that occurred
+   */
   private handlePollingError(error: unknown): void {
     this.consecutiveErrors++;
     this.lastErrorTime = new Date();
@@ -397,6 +625,13 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     this.scheduleNextPoll();
   }
 
+  /**
+   * Creates a PromptrunPollingError from various error types.
+   *
+   * @private
+   * @param {unknown} error - The original error
+   * @returns {PromptrunPollingError} A properly formatted polling error
+   */
   private createPollingError(error: unknown): PromptrunPollingError {
     let type: PromptrunPollingError["type"] = "unknown";
     let message = `Polling error for project ${this.projectId}`;
@@ -440,6 +675,12 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     });
   }
 
+  /**
+   * Logs default error messages to console when no error handler is provided.
+   *
+   * @private
+   * @param {PromptrunPollingError} pollingError - The polling error to log
+   */
   private logDefaultError(pollingError: PromptrunPollingError): void {
     if (pollingError.type === "rate_limit") {
       // eslint-disable-next-line no-console
@@ -467,6 +708,15 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Fetches a prompt from the Promptrun API.
+   *
+   * @private
+   * @returns {Promise<PromptrunPrompt>} Promise that resolves to the prompt data
+   * @throws {PromptrunAuthenticationError} When API authentication fails
+   * @throws {PromptrunAPIError} When API returns an error
+   * @throws {PromptrunConnectionError} When network communication fails
+   */
   private async fetchPrompt(): Promise<PromptrunPrompt> {
     // Build query parameters
     const queryParams = new URLSearchParams({
@@ -481,8 +731,7 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
       queryParams.append("tag", this.tagParam);
     }
 
-    const baseURL = this.sdkOptions.baseURL || "https://api.promptrun.ai";
-    const url = `${baseURL}/v1/prompt?${queryParams.toString()}`;
+    const url = `${this.sdkOptions.baseURL}/prompt?${queryParams.toString()}`;
 
     try {
       const response = await fetch(url, {
@@ -529,24 +778,85 @@ export class PromptrunPollingPromptImpl implements PromptrunPollingPrompt {
 }
 
 /**
- * SSE-based prompt implementation for real-time updates
+ * SSE-based prompt implementation for real-time updates.
+ *
+ * This class provides real-time prompt updates using Server-Sent Events (SSE).
+ * Unlike polling, SSE maintains a persistent connection to the server and
+ * receives updates as they happen, providing true real-time synchronization.
+ *
+ * Features:
+ * - Real-time updates via Server-Sent Events
+ * - Automatic reconnection on connection loss
+ * - Event emission for prompt changes and errors
+ * - Same interface as polling prompts for consistency
+ *
+ * @implements {PromptrunPollingPrompt}
+ * @since 1.0.0
+ *
+ * @example
+ * ```typescript
+ * const prompt = await promptrun.prompt({
+ *   projectId: "your-project-id",
+ *   poll: "sse", // Use SSE for real-time updates
+ *   onChange: (event) => {
+ *     console.log("Real-time update:", event.changes);
+ *   }
+ * });
+ *
+ * // SSE prompts work the same as polling prompts
+ * console.log(prompt.prompt);
+ * prompt.stopPolling(); // Closes the SSE connection
+ * ```
  */
 export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
+  /** @private Current prompt data */
   private currentPrompt: PromptrunPrompt;
+
+  /** @private Active EventSource connection */
   private eventSource: EventSource | null = null;
+
+  /** @private SDK configuration options */
   private readonly sdkOptions: PromptrunSDKOptions;
+
+  /** @private Project ID being monitored */
   private readonly projectId: string;
+
+  /** @private Optional version parameter */
   private readonly versionParam?: string;
+
+  /** @private Optional tag parameter */
   private readonly tagParam?: string;
+
+  /** @private Event emitter for change and error events */
   private readonly eventEmitter = new PollingEventEmitter<EventMap>();
+
+  /** @private Change callback function */
   private readonly onChangeCallback?: (
     event: PromptrunPromptChangeEvent
   ) => void;
+
+  /** @private Last error that occurred */
   private lastError?: PromptrunPollingError;
+
+  /** @private Timestamp of last successful fetch */
   private lastSuccessfulFetch?: Date;
+
+  /** @private Timestamp of last error */
   private lastErrorTime?: Date;
+
+  /** @private Whether the SSE connection is currently active */
   private isConnected: boolean = false;
 
+  /**
+   * Creates a new PromptrunSSEPromptImpl instance.
+   *
+   * @param {PromptrunPrompt} initialPrompt - The initial prompt data
+   * @param {PromptrunSDKOptions} sdkOptions - SDK configuration options
+   * @param {string} projectId - The project ID to monitor
+   * @param {string} [version] - Optional version to monitor
+   * @param {string} [tag] - Optional tag to monitor
+   * @param {(event: PromptrunPromptChangeEvent) => void} [onChange] - Change event callback
+   */
   constructor(
     initialPrompt: PromptrunPrompt,
     sdkOptions: PromptrunSDKOptions,
@@ -624,10 +934,21 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
     return this.currentPrompt.model;
   }
 
+  /**
+   * Gets the current prompt data.
+   *
+   * @returns {PromptrunPrompt} A copy of the current prompt data
+   */
   getCurrent(): PromptrunPrompt {
     return { ...this.currentPrompt };
   }
 
+  /**
+   * Stops the SSE connection.
+   *
+   * This method closes the EventSource connection and stops receiving
+   * real-time updates. The prompt will retain its last received data.
+   */
   stopPolling(): void {
     if (this.eventSource) {
       this.eventSource.close();
@@ -636,10 +957,20 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Whether the SSE connection is currently active.
+   *
+   * @returns {boolean} True if SSE connection is active, false otherwise
+   */
   get isPolling(): boolean {
     return this.isConnected;
   }
 
+  /**
+   * Gets the current SSE status.
+   *
+   * @returns {PromptrunPollingStatus} Current SSE status (note: interval is always 0 for SSE)
+   */
   getStatus(): PromptrunPollingStatus {
     return {
       isPolling: this.isConnected,
@@ -652,18 +983,38 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
     };
   }
 
+  /**
+   * Sets an error handler for SSE errors.
+   *
+   * @param {(error: PromptrunPollingError) => void} handler - Function to handle SSE errors
+   */
   onError(handler: (error: PromptrunPollingError) => void): void {
     this.eventEmitter.on("error", handler);
   }
 
+  /**
+   * Removes the error handler.
+   */
   removeErrorHandler(): void {
     this.eventEmitter.off("error");
   }
 
+  /**
+   * Adds a listener for prompt change events.
+   *
+   * @param {"change"} event - The event type to listen for
+   * @param {(event: PromptrunPromptChangeEvent) => void} handler - Function to handle the event
+   */
   on(
     event: "change",
     handler: (event: PromptrunPromptChangeEvent) => void
   ): void;
+  /**
+   * Adds a listener for SSE error events.
+   *
+   * @param {"error"} event - The event type to listen for
+   * @param {(error: PromptrunPollingError) => void} handler - Function to handle the event
+   */
   on(event: "error", handler: (error: PromptrunPollingError) => void): void;
   on(
     event: "change" | "error",
@@ -684,10 +1035,22 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Removes a listener for prompt change events.
+   *
+   * @param {"change"} event - The event type to remove listener for
+   * @param {(event: PromptrunPromptChangeEvent) => void} [handler] - The specific handler to remove (optional)
+   */
   off(
     event: "change",
     handler?: (event: PromptrunPromptChangeEvent) => void
   ): void;
+  /**
+   * Removes a listener for SSE error events.
+   *
+   * @param {"error"} event - The event type to remove listener for
+   * @param {(error: PromptrunPollingError) => void} [handler] - The specific handler to remove (optional)
+   */
   off(event: "error", handler?: (error: PromptrunPollingError) => void): void;
   off(
     event: "change" | "error",
@@ -708,10 +1071,22 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Adds a one-time listener for prompt change events.
+   *
+   * @param {"change"} event - The event type to listen for
+   * @param {(event: PromptrunPromptChangeEvent) => void} handler - Function to handle the event (called once)
+   */
   once(
     event: "change",
     handler: (event: PromptrunPromptChangeEvent) => void
   ): void;
+  /**
+   * Adds a one-time listener for SSE error events.
+   *
+   * @param {"error"} event - The event type to listen for
+   * @param {(error: PromptrunPollingError) => void} handler - Function to handle the event (called once)
+   */
   once(event: "error", handler: (error: PromptrunPollingError) => void): void;
   once(
     event: "change" | "error",
@@ -732,6 +1107,11 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Sets up the Server-Sent Events connection.
+   *
+   * @private
+   */
   private setupSSE(): void {
     // Build query parameters
     const queryParams = new URLSearchParams({
@@ -746,8 +1126,9 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
       queryParams.append("tag", this.tagParam);
     }
 
-    const baseURL = this.sdkOptions.baseURL || "https://api.promptrun.ai";
-    const url = `${baseURL}/v1/prompt/stream?${queryParams.toString()}`;
+    const url = `${
+      this.sdkOptions.baseURL
+    }/prompt/stream?${queryParams.toString()}`;
 
     try {
       // Note: EventSource constructor doesn't accept headers in standard browsers
@@ -823,6 +1204,14 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
     }
   }
 
+  /**
+   * Detects if there are meaningful changes between two prompts.
+   *
+   * @private
+   * @param {PromptrunPrompt} current - The current prompt data
+   * @param {PromptrunPrompt} updated - The updated prompt data
+   * @returns {boolean} True if meaningful changes are detected
+   */
   private detectChanges(
     current: PromptrunPrompt,
     updated: PromptrunPrompt
@@ -836,6 +1225,14 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
     );
   }
 
+  /**
+   * Creates a change event object with details about what changed.
+   *
+   * @private
+   * @param {PromptrunPrompt} previous - The previous prompt data
+   * @param {PromptrunPrompt} current - The current prompt data
+   * @returns {PromptrunPromptChangeEvent} Change event with details about what changed
+   */
   private createChangeEvent(
     previous: PromptrunPrompt,
     current: PromptrunPrompt
@@ -872,6 +1269,12 @@ export class PromptrunSSEPromptImpl implements PromptrunPollingPrompt {
     };
   }
 
+  /**
+   * Handles SSE errors and emits error events.
+   *
+   * @private
+   * @param {Error} error - The error that occurred
+   */
   private handleSSEError(error: Error): void {
     this.lastErrorTime = new Date();
 

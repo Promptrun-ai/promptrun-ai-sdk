@@ -31,9 +31,13 @@ jobs:
 
       - name: Run tests
         run: npm test
+        env:
+          PROMPTRUN_BASE_URL: ${{ secrets.PROMPTRUN_BASE_URL }}
 
       - name: Build package
         run: npm run build
+        env:
+          PROMPTRUN_BASE_URL: ${{ secrets.PROMPTRUN_BASE_URL }}
 
       - name: Configure Git
         run: |
@@ -59,3 +63,4 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROMPTRUN_BASE_URL: ${{ secrets.PROMPTRUN_BASE_URL }}

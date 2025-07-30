@@ -12,6 +12,7 @@ import {
 
 describe("Unit Test: PromptrunSDK Provider", () => {
   let sdk: PromptrunSDK;
+  const originalEnv = process.env;
 
   beforeAll(() => {
     fetchMock.enableMocks();
@@ -19,7 +20,8 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
   beforeEach(() => {
     fetchMock.resetMocks();
-    sdk = new PromptrunSDK("test-api-key");
+    // Set environment variable for tests that need it
+    process.env.PROMPTRUN_BASE_URL = "https://api.example.com/v1";
   });
 
   afterEach(() => {
@@ -27,28 +29,290 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     if (sdk) {
       sdk.stopAllPolling();
     }
+    // Restore original environment
+    process.env = originalEnv;
+    // Reset sdk to undefined
+    sdk = undefined as any;
   });
 
-  test("should initialize with an API key string", () => {
-    const sdk = new PromptrunSDK("test-api-key");
-    expect(sdk).toBeDefined();
-  });
-
-  it("should initialize correctly with an API key string", () => {
-    const sdk = new PromptrunSDK("my-api-key");
-    expect(sdk).toBeInstanceOf(PromptrunSDK);
-  });
-
-  it("should initialize correctly with an options object", () => {
-    const sdk = new PromptrunSDK({
-      apiKey: "my-api-key",
+  describe("Basic initialization with environment variable set", () => {
+    test("should initialize with an API key string", () => {
+      const sdk = new PromptrunSDK("test-api-key");
+      expect(sdk).toBeDefined();
     });
-    expect(sdk).toBeInstanceOf(PromptrunSDK);
+
+    it("should initialize correctly with an API key string", () => {
+      const sdk = new PromptrunSDK("my-api-key");
+      expect(sdk).toBeInstanceOf(PromptrunSDK);
+    });
+
+    it("should initialize correctly with an options object", () => {
+      const sdk = new PromptrunSDK({
+        apiKey: "my-api-key",
+        baseURL: "https://api.example.com/v1",
+      });
+      expect(sdk).toBeInstanceOf(PromptrunSDK);
+    });
+
+    it("should work when baseURL is not provided in options object (uses env var)", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+        });
+      }).not.toThrow();
+    });
+  });
+
+  describe("Constructor and baseURL validation", () => {
+    // This test suite runs without the environment variable set
+    const originalEnv = process.env.PROMPTRUN_BASE_URL;
+
+    beforeEach(() => {
+      // Clear environment variable for validation tests
+      delete process.env.PROMPTRUN_BASE_URL;
+    });
+
+    afterEach(() => {
+      // Restore environment variable
+      if (originalEnv) {
+        process.env.PROMPTRUN_BASE_URL = originalEnv;
+      }
+    });
+
+    test("should throw error when initializing with API key string without baseURL", () => {
+      expect(() => {
+        new PromptrunSDK("test-api-key");
+      }).toThrow(PromptrunConfigurationError);
+    });
+
+    it("should throw error when initializing with API key string without baseURL", () => {
+      expect(() => {
+        new PromptrunSDK("my-api-key");
+      }).toThrow(PromptrunConfigurationError);
+    });
+
+    it("should initialize correctly with an options object", () => {
+      const sdk = new PromptrunSDK({
+        apiKey: "my-api-key",
+        baseURL: "https://api.example.com/v1",
+      });
+      expect(sdk).toBeInstanceOf(PromptrunSDK);
+    });
+
+    it("should throw error when baseURL is not provided in options object", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+        });
+      }).toThrow(PromptrunConfigurationError);
+    });
+
+    it("should throw error when baseURL is not provided in options object (no fallback)", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          // baseURL is not provided at all
+        });
+      }).toThrow(PromptrunConfigurationError);
+    });
+
+    it("should throw PromptrunConfigurationError when baseURL is empty string in options object", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          baseURL: "",
+        });
+      }).toThrow(PromptrunConfigurationError);
+    });
+
+    it("should throw PromptrunConfigurationError when baseURL is null in options object", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          baseURL: null as any,
+        });
+      }).toThrow(PromptrunConfigurationError);
+    });
+
+    it("should throw PromptrunConfigurationError when baseURL is invalid URL format", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          baseURL: "invalid-url",
+        });
+      }).toThrow(PromptrunConfigurationError);
+    });
+
+    it("should throw PromptrunConfigurationError when baseURL is missing protocol", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          baseURL: "api.promptrun.ai/v1",
+        });
+      }).toThrow(PromptrunConfigurationError);
+    });
+
+    it("should accept valid baseURL with https protocol", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          baseURL: "https://api.example.com/v1",
+        });
+      }).not.toThrow();
+    });
+
+    it("should accept valid baseURL with http protocol", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          baseURL: "http://localhost:3000/api",
+        });
+      }).not.toThrow();
+    });
+
+    it("should accept valid baseURL with custom domain", () => {
+      expect(() => {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          baseURL: "https://custom-api.example.com/v1",
+        });
+      }).not.toThrow();
+    });
+
+    it("should provide helpful error message when baseURL is missing", () => {
+      try {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          baseURL: undefined as any,
+        });
+      } catch (error) {
+        expect(error).toBeInstanceOf(PromptrunConfigurationError);
+        expect((error as PromptrunConfigurationError).message).toContain(
+          "baseURL is required but not configured"
+        );
+        expect((error as PromptrunConfigurationError).parameter).toBe(
+          "baseURL"
+        );
+        expect(
+          (error as PromptrunConfigurationError).providedValue
+        ).toBeUndefined();
+        expect((error as PromptrunConfigurationError).expectedValue).toBe(
+          "A valid URL string"
+        );
+      }
+    });
+
+    it("should provide helpful error message when baseURL is invalid", () => {
+      try {
+        new PromptrunSDK({
+          apiKey: "my-api-key",
+          baseURL: "invalid-url",
+        });
+      } catch (error) {
+        expect(error).toBeInstanceOf(PromptrunConfigurationError);
+        expect((error as PromptrunConfigurationError).message).toContain(
+          "Invalid baseURL format: invalid-url"
+        );
+        expect((error as PromptrunConfigurationError).parameter).toBe(
+          "baseURL"
+        );
+        expect((error as PromptrunConfigurationError).providedValue).toBe(
+          "invalid-url"
+        );
+        expect((error as PromptrunConfigurationError).expectedValue).toBe(
+          "A valid URL string"
+        );
+      }
+    });
+
+    describe("Environment variable baseURL support", () => {
+      const originalEnv = process.env;
+
+      beforeEach(() => {
+        jest.resetModules();
+        process.env = { ...originalEnv };
+        // Clear the environment variable for these specific tests
+        delete process.env.PROMPTRUN_BASE_URL;
+      });
+
+      afterEach(() => {
+        process.env = originalEnv;
+      });
+
+      it("should use PROMPTRUN_BASE_URL environment variable when available with string constructor", () => {
+        process.env.PROMPTRUN_BASE_URL = "https://custom-api.example.com/v1";
+
+        expect(() => {
+          new PromptrunSDK("test-api-key");
+        }).not.toThrow();
+      });
+
+      it("should use PROMPTRUN_BASE_URL environment variable when available with options constructor", () => {
+        process.env.PROMPTRUN_BASE_URL = "https://custom-api.example.com/v1";
+
+        expect(() => {
+          new PromptrunSDK({
+            apiKey: "test-api-key",
+          });
+        }).not.toThrow();
+      });
+
+      it("should prioritize PROMPTRUN_BASE_URL over provided baseURL in options", () => {
+        process.env.PROMPTRUN_BASE_URL = "https://env-api.example.com/v1";
+
+        expect(() => {
+          new PromptrunSDK({
+            apiKey: "test-api-key",
+            baseURL: "https://options-api.example.com/v1",
+          });
+        }).not.toThrow();
+      });
+
+      it("should fall back to provided baseURL when PROMPTRUN_BASE_URL is not set", () => {
+        delete process.env.PROMPTRUN_BASE_URL;
+
+        expect(() => {
+          new PromptrunSDK({
+            apiKey: "test-api-key",
+            baseURL: "https://fallback-api.example.com/v1",
+          });
+        }).not.toThrow();
+      });
+
+      it("should throw error when neither environment variable nor options baseURL is provided", () => {
+        delete process.env.PROMPTRUN_BASE_URL;
+
+        expect(() => {
+          new PromptrunSDK({
+            apiKey: "test-api-key",
+          });
+        }).toThrow(PromptrunConfigurationError);
+      });
+
+      it("should throw error when PROMPTRUN_BASE_URL is set to invalid URL", () => {
+        process.env.PROMPTRUN_BASE_URL = "invalid-url";
+
+        expect(() => {
+          new PromptrunSDK("test-api-key");
+        }).toThrow(PromptrunConfigurationError);
+      });
+
+      it("should throw error when PROMPTRUN_BASE_URL is empty string", () => {
+        process.env.PROMPTRUN_BASE_URL = "";
+
+        expect(() => {
+          new PromptrunSDK("test-api-key");
+        }).toThrow(PromptrunConfigurationError);
+      });
+    });
   });
 
   describe("prompt() method error handling", () => {
     test("should throw PromptrunAuthenticationError on 401 status", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       // Mock a 401 Unauthorized response
       fetchMock.mockResponseOnce("Unauthorized", { status: 401 });
 
@@ -59,7 +323,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
     });
 
     test("should throw a generic error if the error is not a known type", async () => {
-      const sdk = new PromptrunSDK({ apiKey: "test-key" });
+      const sdk = new PromptrunSDK({
+        apiKey: "test-key",
+        baseURL: "https://api.example.com/v1",
+      });
       fetchMock.mockReject(new Error("A generic error"));
 
       await expect(sdk.prompt({ projectId: "test-project" })).rejects.toThrow(
@@ -178,7 +445,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.promptrun.ai/v1/prompt?projectId=proj-1",
+      "https://api.example.com/v1/prompt?projectId=proj-1",
       expect.any(Object)
     );
   });
@@ -246,7 +513,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       await sdk.prompt({ projectId: "proj-123" });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/v1/prompt?projectId=proj-123",
+        "https://api.example.com/v1/prompt?projectId=proj-123",
         expect.any(Object)
       );
     });
@@ -261,7 +528,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/v1/prompt?projectId=proj-123&version=v1",
+        "https://api.example.com/v1/prompt?projectId=proj-123&version=v1",
         expect.any(Object)
       );
     });
@@ -276,7 +543,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/v1/prompt?projectId=proj-123&tag=production",
+        "https://api.example.com/v1/prompt?projectId=proj-123&tag=production",
         expect.any(Object)
       );
     });
@@ -292,7 +559,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/v1/prompt?projectId=proj-123&version=v2&tag=staging",
+        "https://api.example.com/v1/prompt?projectId=proj-123&version=v2&tag=staging",
         expect.any(Object)
       );
     });
@@ -325,7 +592,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
 
       expect(result.prompt).toBe("You are a test assistant.");
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/v1/prompt?projectId=proj-123&version=v1&tag=production",
+        "https://api.example.com/v1/prompt?projectId=proj-123&version=v1&tag=production",
         expect.any(Object)
       );
     });
@@ -343,7 +610,7 @@ describe("Unit Test: PromptrunSDK Provider", () => {
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.promptrun.ai/v1/prompt?projectId=proj-123&version=v1&tag=dev",
+        "https://api.example.com/v1/prompt?projectId=proj-123&version=v1&tag=dev",
         expect.any(Object)
       );
     });
@@ -1060,6 +1327,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
   });
 
   describe("Enhanced prompt functionality", () => {
+    beforeEach(() => {
+      sdk = new PromptrunSDK("test-api-key");
+    });
+
     const mockPromptResponse = {
       id: "test-prompt-id",
       prompt:
@@ -1263,6 +1534,10 @@ describe("Unit Test: PromptrunSDK Provider", () => {
   });
 
   describe("Inputs extraction functionality", () => {
+    beforeEach(() => {
+      sdk = new PromptrunSDK("test-api-key");
+    });
+
     const mockPromptResponse = {
       id: "test-prompt-id",
       createdAt: "2024-01-01T00:00:00Z",
